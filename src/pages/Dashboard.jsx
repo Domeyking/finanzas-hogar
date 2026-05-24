@@ -1,6 +1,4 @@
-Ahora el Dashboard.jsx. Mismo proceso:
-En el panel izquierdo src → pages → Dashboard.jsx → lápiz ✏️ → Cmd + A → borrar → pegar esto:
-jsximport { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { CAT_COLORS, fmt, fmtShort, CATEGORIAS } from '../lib/constants'
 import NuevoGasto from '../components/NuevoGasto'
