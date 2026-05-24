@@ -323,7 +323,7 @@ export default function Dashboard({ user }) {
 
         {showCSV && (
           <CargaCSV user={user}
-            onDone={(n) => { setShowCSV(false); fetchGastos(); fetchGastosAnio(); showToast(`✓ ${n} gastos importados`) }}
+onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio(); showToast(`✓ ${n} gastos importados${aprendidas > 0 ? ` · 🧠 ${aprendidas} reglas nuevas aprendidas` : ''}`) }}
             onCancel={() => setShowCSV(false)} />
         )}
 
