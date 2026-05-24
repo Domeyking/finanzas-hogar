@@ -1,7 +1,1 @@
-{
-  "functions": {
-    "api/categorizar.js": {
-      "runtime": "nodejs20.x"
-    }
-  }
-}
+{}
