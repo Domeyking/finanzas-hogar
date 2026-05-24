@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { CATEGORIAS, FUENTES } from '../lib/constants'
 
-export default function NuevoGasto({ user, onSaved, onCancel }) {
+export default function NuevoGasto({ user, onSaved, onCancel, gastoEditar }) {
   const hoy = new Date().toISOString().split('T')[0]
   const [form, setForm] = useState({
     fecha: hoy,
@@ -15,6 +15,19 @@ export default function NuevoGasto({ user, onSaved, onCancel }) {
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
 
+  useEffect(() => {
+    if (gastoEditar) {
+      setForm({
+        fecha:       gastoEditar.fecha,
+        descripcion: gastoEditar.descripcion,
+        monto:       Number(gastoEditar.monto).toLocaleString('es-CL'),
+        categoria:   gastoEditar.categoria,
+        fuente:      gastoEditar.fuente,
+        notas:       gastoEditar.notas || '',
+      })
+    }
+  }, [gastoEditar])
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   async function handleSubmit(e) {
@@ -24,18 +37,34 @@ export default function NuevoGasto({ user, onSaved, onCancel }) {
     if (!monto || monto <= 0) { setError('Ingresa un monto válido'); return }
 
     setLoading(true)
-    const { error } = await supabase.from('gastos').insert({
-      user_id:     user.id,
-      user_name:   user.user_metadata?.full_name || user.email.split('@')[0],
-      fecha:       form.fecha,
-      descripcion: form.descripcion,
-      monto,
-      categoria:   form.categoria,
-      fuente:      form.fuente,
-      notas:       form.notas || null,
-    })
-    setLoading(false)
-    if (error) { setError(error.message); return }
+    if (gastoEditar) {
+      const { error } = await supabase
+        .from('gastos')
+        .update({
+          fecha:       form.fecha,
+          descripcion: form.descripcion,
+          monto,
+          categoria:   form.categoria,
+          fuente:      form.fuente,
+          notas:       form.notas || null,
+        })
+        .eq('id', gastoEditar.id)
+      setLoading(false)
+      if (error) { setError(error.message); return }
+    } else {
+      const { error } = await supabase.from('gastos').insert({
+        user_id:     user.id,
+        user_name:   user.user_metadata?.full_name || user.email.split('@')[0],
+        fecha:       form.fecha,
+        descripcion: form.descripcion,
+        monto,
+        categoria:   form.categoria,
+        fuente:      form.fuente,
+        notas:       form.notas || null,
+      })
+      setLoading(false)
+      if (error) { setError(error.message); return }
+    }
     onSaved()
   }
 
@@ -46,9 +75,11 @@ export default function NuevoGasto({ user, onSaved, onCancel }) {
   }
 
   return (
-    <div className="card">
+    <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold text-slate-800">Nuevo gasto</h2>
+        <h2 className="font-medium text-slate-800">
+          {gastoEditar ? 'Editar gasto' : 'Nuevo gasto'}
+        </h2>
         {onCancel && (
           <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
         )}
@@ -99,8 +130,10 @@ export default function NuevoGasto({ user, onSaved, onCancel }) {
 
         {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg p-2.5">{error}</p>}
 
-        <button type="submit" className="btn-primary w-full" disabled={loading}>
-          {loading ? 'Guardando...' : 'Guardar gasto'}
+        <button type="submit" disabled={loading}
+          className="w-full py-2.5 rounded-xl text-sm font-medium transition-all"
+          style={{ background: '#D4537E', color: 'white', opacity: loading ? 0.6 : 1 }}>
+          {loading ? 'Guardando...' : gastoEditar ? 'Guardar cambios' : 'Guardar gasto'}
         </button>
       </form>
     </div>
