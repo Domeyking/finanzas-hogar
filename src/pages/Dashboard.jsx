@@ -14,6 +14,7 @@ export default function Dashboard({ user }) {
   const [gastos, setGastos]         = useState([])
   const [loading, setLoading]       = useState(true)
   const [showForm, setShowForm]     = useState(false)
+  const [gastoEditar, setGastoEditar] = useState(null)
   const [filtroMes, setFiltroMes]   = useState(new Date().getMonth())
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear())
   const [vistaTab, setVistaTab]     = useState('resumen')
@@ -40,6 +41,17 @@ export default function Dashboard({ user }) {
     if (!confirm('¿Eliminar este gasto?')) return
     await supabase.from('gastos').delete().eq('id', id)
     fetchGastos()
+  }
+
+  function editarGasto(g) {
+    setGastoEditar(g)
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function cerrarForm() {
+    setShowForm(false)
+    setGastoEditar(null)
   }
 
   const totalMes  = gastos.reduce((s, g) => s + Number(g.monto), 0)
@@ -118,7 +130,7 @@ export default function Dashboard({ user }) {
         </div>
 
         {!showForm && (
-          <button onClick={() => setShowForm(true)}
+          <button onClick={() => { setGastoEditar(null); setShowForm(true) }}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
             style={{ background: '#D4537E', color: 'white' }}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -129,9 +141,12 @@ export default function Dashboard({ user }) {
         )}
 
         {showForm && (
-          <NuevoGasto user={user}
-            onSaved={() => { setShowForm(false); fetchGastos() }}
-            onCancel={() => setShowForm(false)} />
+          <NuevoGasto
+            user={user}
+            gastoEditar={gastoEditar}
+            onSaved={() => { cerrarForm(); fetchGastos() }}
+            onCancel={cerrarForm}
+          />
         )}
 
         <div className="flex rounded-xl p-1" style={{ background: '#fce8f0' }}>
@@ -216,13 +231,19 @@ export default function Dashboard({ user }) {
                   <p className="text-sm font-medium text-slate-800 truncate">{g.descripcion}</p>
                   <p className="text-xs text-slate-400">{g.categoria} · {g.user_name} · {g.fecha}</p>
                 </div>
-                <div className="text-right flex-shrink-0">
+                <div className="text-right flex-shrink-0 flex flex-col gap-1">
                   <p className="text-sm font-medium" style={{ color: '#D4537E' }}>{fmt(g.monto)}</p>
                   {g.user_id === user.id && (
-                    <button onClick={() => borrarGasto(g.id)}
-                      className="text-xs text-red-400 hover:text-red-600 mt-0.5">
-                      Eliminar
-                    </button>
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => editarGasto(g)}
+                        className="text-xs text-slate-400 hover:text-slate-600">
+                        Editar
+                      </button>
+                      <button onClick={() => borrarGasto(g.id)}
+                        className="text-xs text-red-400 hover:text-red-600">
+                        Eliminar
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
