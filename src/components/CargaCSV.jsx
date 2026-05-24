@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { categorizarTransacciones } from '../lib/anthropic'
+import { categorizarTransacciones, guardarRegla } from '../lib/anthropic'
 import { CATEGORIAS, FUENTES, CAT_COLORS, fmt } from '../lib/constants'
 
 function parsearCSV(texto) {
@@ -40,6 +40,7 @@ export default function CargaCSV({ user, onDone, onCancel }) {
   const [transacciones, setTrans] = useState([])
   const [error, setError]         = useState('')
   const [progreso, setProgreso]   = useState(0)
+  const [stats, setStats]         = useState({ aprendidas: 0, ia: 0 })
 
   const seleccionados = transacciones.filter(t => t.incluir)
   const todos         = transacciones.length > 0 && seleccionados.length === transacciones.length
@@ -59,11 +60,14 @@ export default function CargaCSV({ user, onDone, onCancel }) {
     setPaso('procesando')
     const LOTE = 20
     const resultado = []
+    let totalAprendidas = 0
+    let totalIA = 0
+
     for (let i = 0; i < filas.length; i += LOTE) {
       const lote = filas.slice(i, i + LOTE)
       setProgreso(Math.round((i / filas.length) * 100))
       try {
-        const cats = await categorizarTransacciones(lote)
+        const cats = await categorizarTransacciones(lote, user.id)
         cats.forEach(c => {
           const fila = lote[c.index - 1]
           if (fila) {
@@ -74,7 +78,11 @@ export default function CargaCSV({ user, onDone, onCancel }) {
               categoria:   c.categoria,
               fuente:      'Tarjeta de crédito',
               incluir:     true,
+              aprendida:   c.aprendida || false,
+              categoriaOriginal: c.categoria,
             })
+            if (c.aprendida) totalAprendidas++
+            else totalIA++
           }
         })
       } catch (err) {
@@ -84,13 +92,13 @@ export default function CargaCSV({ user, onDone, onCancel }) {
       }
     }
     setProgreso(100)
+    setStats({ aprendidas: totalAprendidas, ia: totalIA })
     setTrans(resultado)
     setPaso('preview')
   }
 
   function toggleTodos() {
-    const nuevoEstado = !todos
-    setTrans(t => t.map(x => ({ ...x, incluir: nuevoEstado })))
+    setTrans(t => t.map(x => ({ ...x, incluir: !todos })))
   }
 
   function toggleIncluir(id) {
@@ -116,6 +124,18 @@ export default function CargaCSV({ user, onDone, onCancel }) {
   async function guardarTodo() {
     setPaso('guardando')
     const userName = user.user_metadata?.full_name || user.email.split('@')[0]
+
+    // Guardar reglas para categorías que fueron corregidas
+    const corregidas = transacciones.filter(t =>
+      t.incluir && t.categoria !== t.categoriaOriginal
+    )
+    for (const t of corregidas) {
+      const palabras = t.descripcion.split(' ').filter(p => p.length >= 4)
+      if (palabras.length > 0) {
+        await guardarRegla(user.id, palabras[0].toLowerCase(), t.categoria)
+      }
+    }
+
     const aGuardar = seleccionados.map(t => ({
       user_id:     user.id,
       user_name:   userName,
@@ -126,9 +146,10 @@ export default function CargaCSV({ user, onDone, onCancel }) {
       fuente:      t.fuente,
       notas:       null,
     }))
+
     const { error } = await supabase.from('gastos').insert(aGuardar)
     if (error) { setError(error.message); setPaso('preview'); return }
-    onDone(aGuardar.length)
+    onDone(aGuardar.length, corregidas.length)
   }
 
   return (
@@ -173,12 +194,30 @@ export default function CargaCSV({ user, onDone, onCancel }) {
       {paso === 'preview' && (
         <div className="space-y-3">
 
+          {/* Stats de categorización */}
+          {(stats.aprendidas > 0 || stats.ia > 0) && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              {stats.aprendidas > 0 && (
+                <div style={{ background: '#e8f5e9', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: '#2e7d32', flex: 1, textAlign: 'center' }}>
+                  🧠 {stats.aprendidas} con reglas aprendidas
+                </div>
+              )}
+              {stats.ia > 0 && (
+                <div style={{ background: '#fdf0f4', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: '#9b4468', flex: 1, textAlign: 'center' }}>
+                  ✨ {stats.ia} categorizadas por IA
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Barra superior */}
           <div style={{ background: '#fdf0f4', borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <input type="checkbox" checked={todos} ref={el => { if (el) el.indeterminate = algunos }}
-              onChange={toggleTodos} style={{ accentColor: '#D4537E', cursor: 'pointer', width: 16, height: 16 }} />
+            <input type="checkbox" checked={todos}
+              ref={el => { if (el) el.indeterminate = algunos }}
+              onChange={toggleTodos}
+              style={{ accentColor: '#D4537E', cursor: 'pointer', width: 16, height: 16 }} />
             <span style={{ fontSize: 13, color: '#9b4468', flex: 1 }}>
-              <strong>{seleccionados.length}</strong> de {transacciones.length} seleccionados · {fmt(total)}
+              <strong>{seleccionados.length}</strong> de {transacciones.length} · {fmt(total)}
             </span>
             {seleccionados.length > 0 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -199,7 +238,9 @@ export default function CargaCSV({ user, onDone, onCancel }) {
             </button>
           </div>
 
-          <p style={{ fontSize: 12, color: '#b0899a' }}>Revisa y edita antes de importar. Puedes cambiar la categoría de varios a la vez.</p>
+          <p style={{ fontSize: 12, color: '#b0899a' }}>
+            Si corriges una categoría, la app la recordará para la próxima carga.
+          </p>
 
           <div style={{ maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {transacciones.map(t => (
@@ -214,16 +255,19 @@ export default function CargaCSV({ user, onDone, onCancel }) {
                     style={{ marginTop: 3, accentColor: '#D4537E', cursor: 'pointer' }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="flex items-center justify-between gap-2">
-                      <p style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', margin: 0 }} className="truncate">{t.descripcion}</p>
+                      <div className="flex items-center gap-1 flex-1 min-w-0">
+                        <p style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', margin: 0 }} className="truncate">{t.descripcion}</p>
+                        {t.aprendida && (
+                          <span title="Categoría aprendida" style={{ fontSize: 10, background: '#e8f5e9', color: '#2e7d32', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>🧠</span>
+                        )}
+                      </div>
                       <p style={{ fontSize: 13, fontWeight: 500, color: '#D4537E', flexShrink: 0, margin: 0 }}>{fmt(t.monto)}</p>
                     </div>
                     <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 6px' }}>{t.fecha}</p>
-                    <div className="flex gap-2 flex-wrap">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: CAT_COLORS[t.categoria] || '#B4B2A9', flexShrink: 0 }} />
-                      </div>
+                    <div className="flex gap-2 flex-wrap items-center">
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: CAT_COLORS[t.categoria] || '#B4B2A9', flexShrink: 0 }} />
                       <select value={t.categoria} onChange={e => cambiarCategoria(t.id, e.target.value)}
-                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '0.5px solid #f0d6e0', background: '#fdf6f9', color: '#9b4468', cursor: 'pointer' }}>
+                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, border: `0.5px solid ${t.categoria !== t.categoriaOriginal ? '#D4537E' : '#f0d6e0'}`, background: t.categoria !== t.categoriaOriginal ? '#fdf0f4' : '#fdf6f9', color: '#9b4468', cursor: 'pointer' }}>
                         {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
                       </select>
                       <select value={t.fuente} onChange={e => cambiarFuente(t.id, e.target.value)}
@@ -244,7 +288,7 @@ export default function CargaCSV({ user, onDone, onCancel }) {
       {paso === 'guardando' && (
         <div className="text-center py-8">
           <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid #f0d6e0', borderTopColor: '#D4537E', margin: '0 auto', animation: 'spin 1s linear infinite' }} />
-          <p style={{ fontSize: 14, color: '#D4537E', fontWeight: 500, marginTop: 12 }}>Guardando gastos...</p>
+          <p style={{ fontSize: 14, color: '#D4537E', fontWeight: 500, marginTop: 12 }}>Guardando y aprendiendo...</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
       )}
