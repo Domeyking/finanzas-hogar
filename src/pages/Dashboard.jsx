@@ -190,15 +190,15 @@ export default function Dashboard({ user }) {
 
         {/* Métricas — cambian según vista mes o año */}
         <div className="grid grid-cols-3 gap-3">
-          {vistaAnual ? [
-            { label: `Total ${filtroAnio}`, value: fmtShort(totalAnio),          sub: `${gastosAnio.length} gastos` },
-            { label: 'Mi parte',            value: fmtShort(totalMioAnio),        sub: `${misGastosAnio.length} gastos` },
-            { label: 'Pareja',              value: fmtShort(totalAnio-totalMioAnio), sub: `${gastosAnio.length-misGastosAnio.length} gastos` },
+          {(vistaAnual ? [
+            { label: `Total ${filtroAnio}`,  value: fmtShort(totalAnio),             sub: `${gastosAnio.length} gastos` },
+            { label: 'Mi parte',             value: fmtShort(totalMioAnio),           sub: `${misGastosAnio.length} gastos` },
+            { label: 'Pareja',               value: fmtShort(totalAnio-totalMioAnio), sub: `${gastosAnio.length-misGastosAnio.length} gastos` },
           ] : [
             { label: 'Total mes',  value: fmtShort(totalMes),          sub: `${gastos.length} gastos` },
             { label: 'Mi parte',   value: fmtShort(totalMio),          sub: `${misGastos.length} gastos` },
             { label: 'Pareja',     value: fmtShort(totalMes-totalMio), sub: `${gastos.length-misGastos.length} gastos` },
-          ].map(m => (
+          ]).map(m => (
             <div key={m.label} className="card text-center" style={{ background: 'white', borderColor: '#f0d6e0' }}>
               <p className="text-xs text-slate-400 mb-0.5">{m.label}</p>
               <p className="text-base font-medium text-slate-800">{m.value}</p>
