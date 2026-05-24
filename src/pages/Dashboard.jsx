@@ -5,19 +5,21 @@ import NuevoGasto from '../components/NuevoGasto'
 import Logo from '../components/Logo'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
 } from 'recharts'
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+const MESES_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 export default function Dashboard({ user }) {
-  const [gastos, setGastos]         = useState([])
-  const [loading, setLoading]       = useState(true)
-  const [showForm, setShowForm]     = useState(false)
+  const [gastos, setGastos]           = useState([])
+  const [gastosAnio, setGastosAnio]   = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [showForm, setShowForm]       = useState(false)
   const [gastoEditar, setGastoEditar] = useState(null)
-  const [filtroMes, setFiltroMes]   = useState(new Date().getMonth())
-  const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear())
-  const [vistaTab, setVistaTab]     = useState('resumen')
+  const [filtroMes, setFiltroMes]     = useState(new Date().getMonth())
+  const [filtroAnio, setFiltroAnio]   = useState(new Date().getFullYear())
+  const [vistaTab, setVistaTab]       = useState('resumen')
 
   const userName = user.user_metadata?.full_name || user.email.split('@')[0]
 
@@ -25,17 +27,23 @@ export default function Dashboard({ user }) {
     setLoading(true)
     const inicio = `${filtroAnio}-${String(filtroMes + 1).padStart(2, '0')}-01`
     const fin    = new Date(filtroAnio, filtroMes + 1, 0).toISOString().split('T')[0]
-    const { data, error } = await supabase
-      .from('gastos')
-      .select('*')
-      .gte('fecha', inicio)
-      .lte('fecha', fin)
+    const { data } = await supabase
+      .from('gastos').select('*')
+      .gte('fecha', inicio).lte('fecha', fin)
       .order('fecha', { ascending: false })
-    if (!error) setGastos(data || [])
+    setGastos(data || [])
     setLoading(false)
   }, [filtroMes, filtroAnio])
 
-  useEffect(() => { fetchGastos() }, [fetchGastos])
+  const fetchGastosAnio = useCallback(async () => {
+    const { data } = await supabase
+      .from('gastos').select('*')
+      .gte('fecha', `${filtroAnio}-01-01`)
+      .lte('fecha', `${filtroAnio}-12-31`)
+    setGastosAnio(data || [])
+  }, [filtroAnio])
+
+  useEffect(() => { fetchGastos(); fetchGastosAnio() }, [fetchGastos, fetchGastosAnio])
 
   async function borrarGasto(id) {
     if (!confirm('¿Eliminar este gasto?')) return
@@ -73,6 +81,37 @@ export default function Dashboard({ user }) {
     }, {})
   ).map(([name, value]) => ({ name, value }))
 
+  // Gráfico anual — top 10 categorías + Otros
+  const totalesPorCat = CATEGORIAS
+    .map(cat => ({
+      cat,
+      total: gastosAnio.filter(g => g.categoria === cat).reduce((s, g) => s + Number(g.monto), 0)
+    }))
+    .filter(d => d.total > 0)
+    .sort((a, b) => b.total - a.total)
+
+  const top10    = totalesPorCat.slice(0, 10).map(d => d.cat)
+  const hayOtros = totalesPorCat.length > 10
+
+  const datosAnuales = MESES.map((mes, i) => {
+    const mesGastos = gastosAnio.filter(g => new Date(g.fecha).getMonth() === i)
+    const punto = { mes }
+    top10.forEach(cat => {
+      punto[cat] = mesGastos.filter(g => g.categoria === cat).reduce((s, g) => s + Number(g.monto), 0)
+    })
+    if (hayOtros) {
+      punto['Otros'] = mesGastos
+        .filter(g => !top10.includes(g.categoria))
+        .reduce((s, g) => s + Number(g.monto), 0)
+    }
+    return punto
+  })
+
+  const barKeys = hayOtros ? [...top10, 'Otros'] : top10
+  const colores = [...top10.map(c => CAT_COLORS[c] || '#B4B2A9'), '#B4B2A9']
+
+  const totalAnio = gastosAnio.reduce((s, g) => s + Number(g.monto), 0)
+
   const anios = [filtroAnio - 1, filtroAnio, filtroAnio + 1]
 
   return (
@@ -84,16 +123,11 @@ export default function Dashboard({ user }) {
             <Logo size="md" dark={true} />
             <div className="flex items-center gap-3">
               <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>Hola, {userName}</span>
-              <button
-                onClick={async () => await supabase.auth.signOut()}
+              <button onClick={async () => await supabase.auth.signOut()}
                 style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}
-                className="hover:text-white"
-              >
-                Salir
-              </button>
+                className="hover:text-white">Salir</button>
             </div>
           </div>
-
           <div className="flex gap-2 flex-wrap">
             {MESES.map((m, i) => (
               <button key={m} onClick={() => setFiltroMes(i)}
@@ -141,16 +175,14 @@ export default function Dashboard({ user }) {
         )}
 
         {showForm && (
-          <NuevoGasto
-            user={user}
-            gastoEditar={gastoEditar}
-            onSaved={() => { cerrarForm(); fetchGastos() }}
-            onCancel={cerrarForm}
-          />
+          <NuevoGasto user={user} gastoEditar={gastoEditar}
+            onSaved={() => { cerrarForm(); fetchGastos(); fetchGastosAnio() }}
+            onCancel={cerrarForm} />
         )}
 
+        {/* Tabs */}
         <div className="flex rounded-xl p-1" style={{ background: '#fce8f0' }}>
-          {[['resumen','Resumen'],['lista','Todos los gastos']].map(([k, label]) => (
+          {[['resumen','Resumen'],['lista','Gastos'],['anio','Año']].map(([k, label]) => (
             <button key={k} onClick={() => setVistaTab(k)}
               className="flex-1 py-1.5 text-sm font-medium rounded-lg transition-all"
               style={vistaTab === k
@@ -163,14 +195,15 @@ export default function Dashboard({ user }) {
 
         {loading && <p className="text-center text-sm text-slate-400 py-8">Cargando...</p>}
 
-        {!loading && gastos.length === 0 && (
+        {/* Vista resumen */}
+        {!loading && vistaTab === 'resumen' && gastos.length === 0 && (
           <div className="card text-center py-10" style={{ background: 'white', borderColor: '#f0d6e0' }}>
             <p className="text-slate-400 text-sm">Sin gastos en {MESES[filtroMes]} {filtroAnio}</p>
             <p className="text-slate-400 text-xs mt-1">¡Registra el primero!</p>
           </div>
         )}
 
-        {!loading && gastos.length > 0 && vistaTab === 'resumen' && (
+        {!loading && vistaTab === 'resumen' && gastos.length > 0 && (
           <>
             <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
               <h3 className="text-sm font-medium text-slate-700 mb-3">Por categoría</h3>
@@ -217,7 +250,14 @@ export default function Dashboard({ user }) {
           </>
         )}
 
-        {!loading && gastos.length > 0 && vistaTab === 'lista' && (
+        {/* Vista lista */}
+        {!loading && vistaTab === 'lista' && gastos.length === 0 && (
+          <div className="card text-center py-10" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+            <p className="text-slate-400 text-sm">Sin gastos en {MESES[filtroMes]} {filtroAnio}</p>
+          </div>
+        )}
+
+        {!loading && vistaTab === 'lista' && gastos.length > 0 && (
           <div className="card divide-y" style={{ background: 'white', borderColor: '#f0d6e0' }}>
             {gastos.map(g => (
               <div key={g.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
@@ -236,19 +276,68 @@ export default function Dashboard({ user }) {
                   {g.user_id === user.id && (
                     <div className="flex gap-2 justify-end">
                       <button onClick={() => editarGasto(g)}
-                        className="text-xs text-slate-400 hover:text-slate-600">
-                        Editar
-                      </button>
+                        className="text-xs text-slate-400 hover:text-slate-600">Editar</button>
                       <button onClick={() => borrarGasto(g.id)}
-                        className="text-xs text-red-400 hover:text-red-600">
-                        Eliminar
-                      </button>
+                        className="text-xs text-red-400 hover:text-red-600">Eliminar</button>
                     </div>
                   )}
                 </div>
               </div>
             ))}
           </div>
+        )}
+
+        {/* Vista anual */}
+        {!loading && vistaTab === 'anio' && (
+          <>
+            <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-medium text-slate-700">Gasto anual {filtroAnio}</h3>
+                <span className="text-sm font-medium" style={{ color: '#D4537E' }}>{fmt(totalAnio)}</span>
+              </div>
+              <p className="text-xs text-slate-400 mb-4">Top {top10.length} categorías por mes</p>
+
+              {gastosAnio.length === 0 ? (
+                <p className="text-center text-sm text-slate-400 py-6">Sin gastos en {filtroAnio}</p>
+              ) : (
+                <>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={datosAnuales} margin={{ top:0, right:0, left:0, bottom:0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#fce8f0" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={fmtShort} tick={{ fontSize: 10 }} width={44} />
+                      <Tooltip formatter={(v, name) => [fmt(v), name]} />
+                      {barKeys.map((key, i) => (
+                        <Bar key={key} dataKey={key} stackId="a"
+                          fill={colores[i] || '#B4B2A9'}
+                          radius={i === barKeys.length - 1 ? [4,4,0,0] : [0,0,0,0]} />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+
+                  {/* Leyenda */}
+                  <div className="mt-4 space-y-1.5">
+                    {barKeys.map((key, i) => {
+                      const total = gastosAnio
+                        .filter(g => key === 'Otros' ? !top10.includes(g.categoria) : g.categoria === key)
+                        .reduce((s, g) => s + Number(g.monto), 0)
+                      return (
+                        <div key={key} className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: colores[i] || '#B4B2A9' }} />
+                          <span className="text-xs text-slate-600 flex-1 truncate">{key}</span>
+                          <span className="text-xs font-medium text-slate-700">{fmt(total)}</span>
+                          <span className="text-xs text-slate-400 w-8 text-right">
+                            {totalAnio > 0 ? Math.round(total / totalAnio * 100) : 0}%
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>
