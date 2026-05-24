@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import Logo from '../components/Logo'
 
 export default function Login() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [name, setName]         = useState('')
-  const [mode, setMode]         = useState('login') // 'login' | 'register'
+  const [mode, setMode]         = useState('login')
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const [success, setSuccess]   = useState('')
@@ -15,7 +16,6 @@ export default function Login() {
     setError('')
     setSuccess('')
     setLoading(true)
-
     if (mode === 'register') {
       const { error } = await supabase.auth.signUp({
         email,
@@ -32,27 +32,33 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#fdf6f9' }}>
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-brand-light flex items-center justify-center mx-auto mb-4">
-            <svg className="w-7 h-7 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75" />
+        <div className="flex flex-col items-center mb-8 gap-3">
+          <div style={{
+            width: 64, height: 64, borderRadius: 18,
+            background: 'white',
+            border: '0.5px solid #f0d6e0',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#D4537E" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
             </svg>
           </div>
-          <h1 className="text-xl font-semibold text-slate-800">Finanzas del hogar</h1>
-          <p className="text-sm text-slate-500 mt-1">Control financiero en pareja</p>
+          <Logo size="lg" />
+          <p className="text-sm text-slate-400">Control financiero en pareja</p>
         </div>
 
-        <div className="card">
-          <div className="flex rounded-xl bg-slate-100 p-1 mb-5">
+        <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+          <div className="flex rounded-xl p-1 mb-5" style={{ background: '#fdf0f4' }}>
             {['login', 'register'].map(m => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(''); setSuccess('') }}
-                className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${
-                  mode === m ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
-                }`}
+                className="flex-1 py-1.5 text-sm font-medium rounded-lg transition-all"
+                style={mode === m
+                  ? { background: 'white', color: '#D4537E' }
+                  : { color: '#9ca3af' }}
               >
                 {m === 'login' ? 'Ingresar' : 'Registrarse'}
               </button>
@@ -81,7 +87,9 @@ export default function Login() {
             {error   && <p className="text-xs text-red-500 bg-red-50 rounded-lg p-2.5">{error}</p>}
             {success && <p className="text-xs text-green-600 bg-green-50 rounded-lg p-2.5">{success}</p>}
 
-            <button type="submit" className="btn-primary w-full mt-1" disabled={loading}>
+            <button type="submit" disabled={loading}
+              className="w-full mt-1 py-2.5 rounded-xl text-sm font-medium transition-all"
+              style={{ background: '#D4537E', color: 'white', opacity: loading ? 0.6 : 1 }}>
               {loading ? 'Cargando...' : mode === 'login' ? 'Ingresar' : 'Crear cuenta'}
             </button>
           </form>
