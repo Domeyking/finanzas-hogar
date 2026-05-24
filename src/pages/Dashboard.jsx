@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+Ahora el Dashboard.jsx. Mismo proceso:
+En el panel izquierdo src → pages → Dashboard.jsx → lápiz ✏️ → Cmd + A → borrar → pegar esto:
+jsximport { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { CAT_COLORS, fmt, fmtShort, CATEGORIAS } from '../lib/constants'
 import NuevoGasto from '../components/NuevoGasto'
+import Logo from '../components/Logo'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -15,7 +18,7 @@ export default function Dashboard({ user }) {
   const [showForm, setShowForm]     = useState(false)
   const [filtroMes, setFiltroMes]   = useState(new Date().getMonth())
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear())
-  const [vistaTab, setVistaTab]     = useState('resumen') // 'resumen' | 'lista'
+  const [vistaTab, setVistaTab]     = useState('resumen')
 
   const userName = user.user_metadata?.full_name || user.email.split('@')[0]
 
@@ -41,9 +44,9 @@ export default function Dashboard({ user }) {
     fetchGastos()
   }
 
-  const totalMes    = gastos.reduce((s, g) => s + Number(g.monto), 0)
-  const misGastos   = gastos.filter(g => g.user_id === user.id)
-  const totalMio    = misGastos.reduce((s, g) => s + Number(g.monto), 0)
+  const totalMes  = gastos.reduce((s, g) => s + Number(g.monto), 0)
+  const misGastos = gastos.filter(g => g.user_id === user.id)
+  const totalMio  = misGastos.reduce((s, g) => s + Number(g.monto), 0)
 
   const porCategoria = CATEGORIAS
     .map(cat => ({
@@ -63,38 +66,37 @@ export default function Dashboard({ user }) {
   const anios = [filtroAnio - 1, filtroAnio, filtroAnio + 1]
 
   return (
-    <div className="min-h-screen pb-8">
-      {/* Header */}
-      <div className="bg-brand px-4 pt-8 pb-16">
+    <div className="min-h-screen pb-8" style={{ background: '#fdf6f9' }}>
+
+      <div style={{ background: '#D4537E' }} className="px-4 pt-8 pb-16">
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-1">
-            <div>
-              <p className="text-brand-light text-sm">Hola, {userName}</p>
-              <h1 className="text-white text-xl font-semibold">Finanzas del hogar</h1>
+          <div className="flex items-center justify-between mb-4">
+            <Logo size="md" dark={true} />
+            <div className="flex items-center gap-3">
+              <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>Hola, {userName}</span>
+              <button
+                onClick={async () => await supabase.auth.signOut()}
+                style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}
+                className="hover:text-white"
+              >
+                Salir
+              </button>
             </div>
-            <button
-              onClick={async () => await supabase.auth.signOut()}
-              className="text-brand-light text-xs hover:text-white"
-            >
-              Salir
-            </button>
           </div>
 
-          {/* Filtro mes/año */}
-          <div className="flex gap-2 mt-4 flex-wrap">
+          <div className="flex gap-2 flex-wrap">
             {MESES.map((m, i) => (
               <button key={m} onClick={() => setFiltroMes(i)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                  filtroMes === i ? 'bg-white text-brand' : 'bg-white/20 text-white hover:bg-white/30'
-                }`}>
+                className="px-3 py-1 rounded-full text-xs font-medium transition-all"
+                style={filtroMes === i
+                  ? { background: 'white', color: '#D4537E' }
+                  : { background: 'rgba(255,255,255,0.2)', color: 'white' }}>
                 {m}
               </button>
             ))}
-            <select
-              value={filtroAnio}
-              onChange={e => setFiltroAnio(Number(e.target.value))}
-              className="ml-auto bg-white/20 text-white text-xs rounded-full px-3 py-1 border-0 focus:outline-none cursor-pointer"
-            >
+            <select value={filtroAnio} onChange={e => setFiltroAnio(Number(e.target.value))}
+              className="ml-auto text-xs rounded-full px-3 py-1 border-0 focus:outline-none cursor-pointer"
+              style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>
               {anios.map(a => <option key={a} value={a} className="text-slate-800">{a}</option>)}
             </select>
           </div>
@@ -102,24 +104,25 @@ export default function Dashboard({ user }) {
       </div>
 
       <div className="max-w-lg mx-auto px-4 -mt-10 space-y-4">
-        {/* Metric cards */}
+
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Total mes', value: fmtShort(totalMes), sub: `${gastos.length} gastos` },
-            { label: 'Mi parte', value: fmtShort(totalMio), sub: `${misGastos.length} gastos` },
-            { label: 'Pareja', value: fmtShort(totalMes - totalMio), sub: `${gastos.length - misGastos.length} gastos` },
+            { label: 'Total mes',  value: fmtShort(totalMes),          sub: `${gastos.length} gastos` },
+            { label: 'Mi parte',   value: fmtShort(totalMio),          sub: `${misGastos.length} gastos` },
+            { label: 'Pareja',     value: fmtShort(totalMes-totalMio), sub: `${gastos.length-misGastos.length} gastos` },
           ].map(m => (
-            <div key={m.label} className="card text-center">
-              <p className="text-xs text-slate-500 mb-0.5">{m.label}</p>
-              <p className="text-base font-semibold text-slate-800">{m.value}</p>
+            <div key={m.label} className="card text-center" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+              <p className="text-xs text-slate-400 mb-0.5">{m.label}</p>
+              <p className="text-base font-medium text-slate-800">{m.value}</p>
               <p className="text-xs text-slate-400">{m.sub}</p>
             </div>
           ))}
         </div>
 
-        {/* Botón nuevo gasto */}
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="btn-primary w-full flex items-center justify-center gap-2">
+          <button onClick={() => setShowForm(true)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
+            style={{ background: '#D4537E', color: 'white' }}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
@@ -128,16 +131,18 @@ export default function Dashboard({ user }) {
         )}
 
         {showForm && (
-          <NuevoGasto user={user} onSaved={() => { setShowForm(false); fetchGastos() }} onCancel={() => setShowForm(false)} />
+          <NuevoGasto user={user}
+            onSaved={() => { setShowForm(false); fetchGastos() }}
+            onCancel={() => setShowForm(false)} />
         )}
 
-        {/* Tabs */}
-        <div className="flex rounded-xl bg-slate-100 p-1">
-          {[['resumen', 'Resumen'], ['lista', 'Todos los gastos']].map(([k, label]) => (
+        <div className="flex rounded-xl p-1" style={{ background: '#fce8f0' }}>
+          {[['resumen','Resumen'],['lista','Todos los gastos']].map(([k, label]) => (
             <button key={k} onClick={() => setVistaTab(k)}
-              className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${
-                vistaTab === k ? 'bg-white text-slate-800' : 'text-slate-500'
-              }`}>
+              className="flex-1 py-1.5 text-sm font-medium rounded-lg transition-all"
+              style={vistaTab === k
+                ? { background: 'white', color: '#D4537E' }
+                : { color: '#9ca3af' }}>
               {label}
             </button>
           ))}
@@ -146,17 +151,15 @@ export default function Dashboard({ user }) {
         {loading && <p className="text-center text-sm text-slate-400 py-8">Cargando...</p>}
 
         {!loading && gastos.length === 0 && (
-          <div className="card text-center py-10">
+          <div className="card text-center py-10" style={{ background: 'white', borderColor: '#f0d6e0' }}>
             <p className="text-slate-400 text-sm">Sin gastos en {MESES[filtroMes]} {filtroAnio}</p>
             <p className="text-slate-400 text-xs mt-1">¡Registra el primero!</p>
           </div>
         )}
 
-        {/* Vista resumen */}
         {!loading && gastos.length > 0 && vistaTab === 'resumen' && (
           <>
-            {/* Pie chart por categoría */}
-            <div className="card">
+            <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
               <h3 className="text-sm font-medium text-slate-700 mb-3">Por categoría</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
@@ -184,17 +187,16 @@ export default function Dashboard({ user }) {
               </div>
             </div>
 
-            {/* Bar chart por persona */}
             {porPersona.length > 1 && (
-              <div className="card">
+              <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
                 <h3 className="text-sm font-medium text-slate-700 mb-3">Por persona</h3>
                 <ResponsiveContainer width="100%" height={120}>
-                  <BarChart data={porPersona} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <BarChart data={porPersona} margin={{ top:0, right:0, left:0, bottom:0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#fce8f0" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                     <YAxis tickFormatter={fmtShort} tick={{ fontSize: 11 }} width={50} />
                     <Tooltip formatter={v => fmt(v)} />
-                    <Bar dataKey="value" fill="#534AB7" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="value" fill="#D4537E" radius={[6,6,0,0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -202,11 +204,11 @@ export default function Dashboard({ user }) {
           </>
         )}
 
-        {/* Vista lista */}
         {!loading && gastos.length > 0 && vistaTab === 'lista' && (
-          <div className="card divide-y divide-slate-100">
+          <div className="card divide-y" style={{ background: 'white', borderColor: '#f0d6e0' }}>
             {gastos.map(g => (
-              <div key={g.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+              <div key={g.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
+                style={{ borderColor: '#fce8f0' }}>
                 <div className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5"
                   style={{ backgroundColor: (CAT_COLORS[g.categoria] || '#888780') + '22' }}>
                   <div className="w-2.5 h-2.5 rounded-full"
@@ -217,7 +219,7 @@ export default function Dashboard({ user }) {
                   <p className="text-xs text-slate-400">{g.categoria} · {g.user_name} · {g.fecha}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-semibold text-slate-800">{fmt(g.monto)}</p>
+                  <p className="text-sm font-medium" style={{ color: '#D4537E' }}>{fmt(g.monto)}</p>
                   {g.user_id === user.id && (
                     <button onClick={() => borrarGasto(g.id)}
                       className="text-xs text-red-400 hover:text-red-600 mt-0.5">
