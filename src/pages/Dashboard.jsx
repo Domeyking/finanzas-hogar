@@ -4,7 +4,7 @@ import { CAT_COLORS, fmt, fmtShort, CATEGORIAS } from '../lib/constants'
 import NuevoGasto from '../components/NuevoGasto'
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Tooltip,
 } from 'recharts'
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
@@ -19,6 +19,7 @@ export default function Dashboard({ user }) {
   const [filtroAnio, setFiltroAnio]   = useState(new Date().getFullYear())
   const [vistaAnual, setVistaAnual]   = useState(false)
   const [vistaTab, setVistaTab]       = useState('resumen')
+  const [catDetalle, setCatDetalle]   = useState(null) // categoría seleccionada
 
   const userName = user.user_metadata?.full_name || user.email.split('@')[0]
 
@@ -62,19 +63,27 @@ export default function Dashboard({ user }) {
   }
 
   // Métricas mes
-  const totalMes  = gastos.reduce((s, g) => s + Number(g.monto), 0)
-  const misGastos = gastos.filter(g => g.user_id === user.id)
-  const totalMio  = misGastos.reduce((s, g) => s + Number(g.monto), 0)
+  const totalMes      = gastos.reduce((s, g) => s + Number(g.monto), 0)
+  const misGastos     = gastos.filter(g => g.user_id === user.id)
+  const totalMio      = misGastos.reduce((s, g) => s + Number(g.monto), 0)
 
   // Métricas año
-  const totalAnio    = gastosAnio.reduce((s, g) => s + Number(g.monto), 0)
-  const misGastosAnio = gastosAnio.filter(g => g.user_id === user.id)
-  const totalMioAnio  = misGastosAnio.reduce((s, g) => s + Number(g.monto), 0)
+  const totalAnio      = gastosAnio.reduce((s, g) => s + Number(g.monto), 0)
+  const misGastosAnio  = gastosAnio.filter(g => g.user_id === user.id)
+  const totalMioAnio   = misGastosAnio.reduce((s, g) => s + Number(g.monto), 0)
 
   const porCategoria = CATEGORIAS
     .map(cat => ({
       name: cat,
       value: gastos.filter(g => g.categoria === cat).reduce((s, g) => s + Number(g.monto), 0),
+    }))
+    .filter(d => d.value > 0)
+    .sort((a, b) => b.value - a.value)
+
+  const porCategoriaAnio = CATEGORIAS
+    .map(cat => ({
+      name: cat,
+      value: gastosAnio.filter(g => g.categoria === cat).reduce((s, g) => s + Number(g.monto), 0),
     }))
     .filter(d => d.value > 0)
     .sort((a, b) => b.value - a.value)
@@ -93,7 +102,7 @@ export default function Dashboard({ user }) {
     }, {})
   ).map(([name, value]) => ({ name, value }))
 
-  // Gráfico anual
+  // Gráfico anual barras apiladas
   const totalesPorCat = CATEGORIAS
     .map(cat => ({
       cat,
@@ -122,25 +131,109 @@ export default function Dashboard({ user }) {
   const barKeys = hayOtros ? [...top10, 'Otros'] : top10
   const colores = [...top10.map(c => CAT_COLORS[c] || '#B4B2A9'), '#B4B2A9']
 
+  // Detalle de categoría
+  const gastosDetalle = catDetalle
+    ? gastosAnio
+        .filter(g => g.categoria === catDetalle)
+        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+    : []
+
+  const evolucionCat = MESES.map((mes, i) => ({
+    mes,
+    total: gastosAnio
+      .filter(g => g.categoria === catDetalle && new Date(g.fecha).getMonth() === i)
+      .reduce((s, g) => s + Number(g.monto), 0)
+  }))
+
+  const totalCat   = gastosDetalle.reduce((s, g) => s + Number(g.monto), 0)
+  const mesesConGasto = evolucionCat.filter(m => m.total > 0).length
+  const promedioCat   = mesesConGasto > 0 ? Math.round(totalCat / mesesConGasto) : 0
+
   const anios = [filtroAnio - 1, filtroAnio, filtroAnio + 1]
 
-  // Categorías para vista anual resumen
-  const porCategoriaAnio = CATEGORIAS
-    .map(cat => ({
-      name: cat,
-      value: gastosAnio.filter(g => g.categoria === cat).reduce((s, g) => s + Number(g.monto), 0),
-    }))
-    .filter(d => d.value > 0)
-    .sort((a, b) => b.value - a.value)
+  // ── Si hay categoría seleccionada, mostrar pantalla de detalle ──
+  if (catDetalle) {
+    const color = CAT_COLORS[catDetalle] || '#B4B2A9'
+    return (
+      <div className="min-h-screen pb-8" style={{ background: '#fdf6f9' }}>
+        <div style={{ background: color }} className="px-4 pt-8 pb-16">
+          <div className="max-w-lg mx-auto">
+            <button onClick={() => setCatDetalle(null)}
+              className="flex items-center gap-2 mb-4"
+              style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>
+              ← Volver
+            </button>
+            <h1 style={{ color: 'white', fontSize: 22, fontWeight: 500 }}>{catDetalle}</h1>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{filtroAnio}</p>
+          </div>
+        </div>
 
+        <div className="max-w-lg mx-auto px-4 -mt-10 space-y-4">
+          {/* Métricas categoría */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Total año',   value: fmtShort(totalCat),    sub: `${gastosDetalle.length} gastos` },
+              { label: 'Promedio mes', value: fmtShort(promedioCat), sub: 'por mes activo' },
+              { label: '% del total',  value: `${totalAnio > 0 ? Math.round(totalCat/totalAnio*100) : 0}%`, sub: 'del gasto anual' },
+            ].map(m => (
+              <div key={m.label} className="card text-center" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+                <p className="text-xs text-slate-400 mb-0.5">{m.label}</p>
+                <p className="text-base font-medium text-slate-800">{m.value}</p>
+                <p className="text-xs text-slate-400">{m.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Evolución mensual */}
+          <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+            <h3 className="text-sm font-medium text-slate-700 mb-3">Evolución mensual</h3>
+            {gastosDetalle.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-4">Sin gastos este año</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={evolucionCat} margin={{ top:4, right:4, left:0, bottom:0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#fce8f0" />
+                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                  <YAxis tickFormatter={fmtShort} tick={{ fontSize: 10 }} width={44} />
+                  <Tooltip formatter={v => fmt(v)} />
+                  <Line type="monotone" dataKey="total" stroke={color}
+                    strokeWidth={2} dot={{ fill: color, r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* Lista de gastos */}
+          {gastosDetalle.length > 0 && (
+            <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+              <h3 className="text-sm font-medium text-slate-700 mb-3">
+                Todos los gastos — {gastosDetalle.length}
+              </h3>
+              <div className="divide-y" style={{ borderColor: '#fce8f0' }}>
+                {gastosDetalle.map(g => (
+                  <div key={g.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-slate-800 truncate">{g.descripcion}</p>
+                      <p className="text-xs text-slate-400">{g.user_name} · {g.fecha}</p>
+                    </div>
+                    <p className="text-sm font-medium flex-shrink-0" style={{ color }}>{fmt(g.monto)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Vista principal ──
   return (
     <div className="min-h-screen pb-8" style={{ background: '#fdf6f9' }}>
 
-      {/* Header */}
       <div style={{ background: '#D4537E' }} className="px-4 pt-8 pb-16">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-4">
-            {/* Logo arreglado */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                 <span style={{ fontSize: 18, fontWeight: 500, color: 'white' }}>Happy</span>
@@ -156,7 +249,6 @@ export default function Dashboard({ user }) {
             </div>
           </div>
 
-          {/* Filtro meses + botón año */}
           <div className="flex gap-2 flex-wrap">
             {MESES.map((m, i) => (
               <button key={m} onClick={() => { setFiltroMes(i); setVistaAnual(false) }}
@@ -167,7 +259,6 @@ export default function Dashboard({ user }) {
                 {m}
               </button>
             ))}
-            {/* Botón año */}
             <button onClick={() => setVistaAnual(true)}
               className="px-3 py-1 rounded-full text-xs font-medium transition-all"
               style={vistaAnual
@@ -175,7 +266,6 @@ export default function Dashboard({ user }) {
                 : { background: 'rgba(255,255,255,0.2)', color: 'white' }}>
               {filtroAnio}
             </button>
-            {/* Selector año anterior/siguiente */}
             <div className="flex gap-1 ml-1">
               <button onClick={() => setFiltroAnio(a => a - 1)}
                 style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, lineHeight: 1 }}>‹</button>
@@ -188,7 +278,6 @@ export default function Dashboard({ user }) {
 
       <div className="max-w-lg mx-auto px-4 -mt-10 space-y-4">
 
-        {/* Métricas — cambian según vista mes o año */}
         <div className="grid grid-cols-3 gap-3">
           {(vistaAnual ? [
             { label: `Total ${filtroAnio}`,  value: fmtShort(totalAnio),             sub: `${gastosAnio.length} gastos` },
@@ -207,7 +296,6 @@ export default function Dashboard({ user }) {
           ))}
         </div>
 
-        {/* Botón nuevo gasto */}
         {!showForm && (
           <button onClick={() => { setGastoEditar(null); setShowForm(true) }}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
@@ -225,7 +313,6 @@ export default function Dashboard({ user }) {
             onCancel={cerrarForm} />
         )}
 
-        {/* Tabs */}
         <div className="flex rounded-xl p-1" style={{ background: '#fce8f0' }}>
           {[['resumen','Resumen'],['lista','Gastos'],['anio','Gráfico']].map(([k, label]) => (
             <button key={k} onClick={() => setVistaTab(k)}
@@ -240,7 +327,7 @@ export default function Dashboard({ user }) {
 
         {loading && <p className="text-center text-sm text-slate-400 py-8">Cargando...</p>}
 
-        {/* Vista resumen — mes o año */}
+        {/* Vista resumen */}
         {!loading && vistaTab === 'resumen' && (
           <>
             {(vistaAnual ? gastosAnio : gastos).length === 0 ? (
@@ -252,13 +339,18 @@ export default function Dashboard({ user }) {
             ) : (
               <>
                 <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
-                  <h3 className="text-sm font-medium text-slate-700 mb-3">Por categoría</h3>
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-sm font-medium text-slate-700">Por categoría</h3>
+                    <span className="text-xs text-slate-400">Toca para ver detalle</span>
+                  </div>
                   <ResponsiveContainer width="100%" height={200}>
                     <PieChart>
                       <Pie
                         data={vistaAnual ? porCategoriaAnio : porCategoria}
                         cx="50%" cy="50%" outerRadius={80}
-                        dataKey="value" nameKey="name" paddingAngle={2}>
+                        dataKey="value" nameKey="name" paddingAngle={2}
+                        onClick={(d) => setCatDetalle(d.name)}
+                        style={{ cursor: 'pointer' }}>
                         {(vistaAnual ? porCategoriaAnio : porCategoria).map(entry => (
                           <Cell key={entry.name} fill={CAT_COLORS[entry.name] || '#B4B2A9'} />
                         ))}
@@ -266,16 +358,19 @@ export default function Dashboard({ user }) {
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-1.5 mt-2">
-                    {(vistaAnual ? porCategoriaAnio : porCategoria).slice(0, 6).map(d => (
-                      <div key={d.name} className="flex items-center gap-2">
+                    {(vistaAnual ? porCategoriaAnio : porCategoria).slice(0, 8).map(d => (
+                      <button key={d.name}
+                        onClick={() => setCatDetalle(d.name)}
+                        className="w-full flex items-center gap-2 hover:bg-slate-50 rounded-lg px-1 py-1 transition-all">
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                           style={{ backgroundColor: CAT_COLORS[d.name] || '#B4B2A9' }} />
-                        <span className="text-xs text-slate-600 flex-1 truncate">{d.name}</span>
+                        <span className="text-xs text-slate-600 flex-1 text-left truncate">{d.name}</span>
                         <span className="text-xs font-medium text-slate-700">{fmt(d.value)}</span>
                         <span className="text-xs text-slate-400 w-8 text-right">
                           {Math.round(d.value / (vistaAnual ? totalAnio : totalMes) * 100)}%
                         </span>
-                      </div>
+                        <span className="text-xs text-slate-300">›</span>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -346,7 +441,6 @@ export default function Dashboard({ user }) {
               <span className="text-sm font-medium" style={{ color: '#D4537E' }}>{fmt(totalAnio)}</span>
             </div>
             <p className="text-xs text-slate-400 mb-4">Top {top10.length} categorías por mes</p>
-
             {gastosAnio.length === 0 ? (
               <p className="text-center text-sm text-slate-400 py-6">Sin gastos en {filtroAnio}</p>
             ) : (
@@ -363,22 +457,24 @@ export default function Dashboard({ user }) {
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
-
                 <div className="mt-4 space-y-1.5">
                   {barKeys.map((key, i) => {
                     const total = gastosAnio
                       .filter(g => key === 'Otros' ? !top10.includes(g.categoria) : g.categoria === key)
                       .reduce((s, g) => s + Number(g.monto), 0)
                     return (
-                      <div key={key} className="flex items-center gap-2">
+                      <button key={key}
+                        onClick={() => key !== 'Otros' && setCatDetalle(key)}
+                        className="w-full flex items-center gap-2 hover:bg-slate-50 rounded-lg px-1 py-1 transition-all">
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                           style={{ backgroundColor: colores[i] || '#B4B2A9' }} />
-                        <span className="text-xs text-slate-600 flex-1 truncate">{key}</span>
+                        <span className="text-xs text-slate-600 flex-1 text-left truncate">{key}</span>
                         <span className="text-xs font-medium text-slate-700">{fmt(total)}</span>
                         <span className="text-xs text-slate-400 w-8 text-right">
                           {totalAnio > 0 ? Math.round(total / totalAnio * 100) : 0}%
                         </span>
-                      </div>
+                        {key !== 'Otros' && <span className="text-xs text-slate-300">›</span>}
+                      </button>
                     )
                   })}
                 </div>
