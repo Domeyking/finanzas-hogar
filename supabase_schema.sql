@@ -9,12 +9,18 @@ create table if not exists public.gastos (
   user_name   text not null,
   fecha       date not null default current_date,
   descripcion text not null,
-  monto       numeric(12,0) not null check (monto > 0),
+  monto       numeric(12,0) not null check (monto >= 0),
   categoria   text not null,
   fuente      text not null default 'Tarjeta de crédito',
   notas       text,
+  email_id    text unique,
   created_at  timestamptz default now()
 );
+
+-- Migración para bases existentes
+alter table public.gastos add column if not exists email_id text unique;
+alter table public.gastos drop constraint if exists gastos_monto_check;
+alter table public.gastos add constraint gastos_monto_check check (monto >= 0);
 
 -- Habilitar Row Level Security
 alter table public.gastos enable row level security;
