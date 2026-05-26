@@ -44,3 +44,39 @@ create policy "Borrar propios gastos"
 create policy "Editar propios gastos"
   on public.gastos for update
   using (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────
+-- Categorías (compartidas entre la pareja)
+-- ─────────────────────────────────────────────
+
+create table if not exists public.categorias (
+  id          uuid primary key default gen_random_uuid(),
+  nombre      text not null,
+  parent_id   uuid references public.categorias(id) on delete cascade,
+  color       text not null default '#888780',
+  icono       text,
+  orden       integer not null default 0,
+  activa      boolean not null default true,
+  created_at  timestamptz default now()
+);
+
+create index if not exists categorias_parent_idx on public.categorias(parent_id);
+create index if not exists categorias_orden_idx  on public.categorias(orden);
+
+alter table public.categorias enable row level security;
+
+create policy "Ver categorías"
+  on public.categorias for select
+  using (auth.role() = 'authenticated');
+
+create policy "Insertar categorías"
+  on public.categorias for insert
+  with check (auth.role() = 'authenticated');
+
+create policy "Editar categorías"
+  on public.categorias for update
+  using (auth.role() = 'authenticated');
+
+create policy "Borrar categorías"
+  on public.categorias for delete
+  using (auth.role() = 'authenticated');

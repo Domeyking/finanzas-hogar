@@ -32,16 +32,16 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#fdf6f9' }}>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#f4faf7' }}>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8 gap-3">
           <div style={{
             width: 64, height: 64, borderRadius: 18,
             background: 'white',
-            border: '0.5px solid #f0d6e0',
+            border: '0.5px solid #d0ece4',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#D4537E" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1F7A5C" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
             </svg>
           </div>
@@ -49,15 +49,15 @@ export default function Login() {
           <p className="text-sm text-slate-400">Control financiero en pareja</p>
         </div>
 
-        <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
-          <div className="flex rounded-xl p-1 mb-5" style={{ background: '#fdf0f4' }}>
+        <div className="card" style={{ background: 'white', borderColor: '#d0ece4' }}>
+          <div className="flex rounded-xl p-1 mb-5" style={{ background: '#f0faf6' }}>
             {['login', 'register'].map(m => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(''); setSuccess('') }}
                 className="flex-1 py-1.5 text-sm font-medium rounded-lg transition-all"
                 style={mode === m
-                  ? { background: 'white', color: '#D4537E' }
+                  ? { background: 'white', color: '#1F7A5C' }
                   : { color: '#9ca3af' }}
               >
                 {m === 'login' ? 'Ingresar' : 'Registrarse'}
@@ -89,7 +89,7 @@ export default function Login() {
 
             <button type="submit" disabled={loading}
               className="w-full mt-1 py-2.5 rounded-xl text-sm font-medium transition-all"
-              style={{ background: '#D4537E', color: 'white', opacity: loading ? 0.6 : 1 }}>
+              style={{ background: '#1F7A5C', color: 'white', opacity: loading ? 0.6 : 1 }}>
               {loading ? 'Cargando...' : mode === 'login' ? 'Ingresar' : 'Crear cuenta'}
             </button>
           </form>

@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { CATEGORIAS, FUENTES } from '../lib/constants'
+import { FUENTES } from '../lib/constants'
+import { useCategorias } from '../lib/categorias'
 
 export default function NuevoGasto({ user, onSaved, onCancel, gastoEditar }) {
+  const { nombres: CATEGORIAS } = useCategorias()
   const hoy = new Date().toISOString().split('T')[0]
   const [form, setForm] = useState({
     fecha: hoy,
     descripcion: '',
     monto: '',
-    categoria: CATEGORIAS[1],
+    categoria: CATEGORIAS[1] || CATEGORIAS[0] || '',
     fuente: FUENTES[0],
     notas: '',
   })
@@ -27,6 +29,12 @@ export default function NuevoGasto({ user, onSaved, onCancel, gastoEditar }) {
       })
     }
   }, [gastoEditar])
+
+  useEffect(() => {
+    if (!gastoEditar && CATEGORIAS.length > 0 && !CATEGORIAS.includes(form.categoria)) {
+      setForm(f => ({ ...f, categoria: CATEGORIAS[1] || CATEGORIAS[0] || '' }))
+    }
+  }, [CATEGORIAS, gastoEditar])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -75,7 +83,7 @@ export default function NuevoGasto({ user, onSaved, onCancel, gastoEditar }) {
   }
 
   return (
-    <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+    <div className="card" style={{ background: 'white', borderColor: '#d0ece4' }}>
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-medium text-slate-800">
           {gastoEditar ? 'Editar gasto' : 'Nuevo gasto'}
@@ -132,7 +140,7 @@ export default function NuevoGasto({ user, onSaved, onCancel, gastoEditar }) {
 
         <button type="submit" disabled={loading}
           className="w-full py-2.5 rounded-xl text-sm font-medium transition-all"
-          style={{ background: '#D4537E', color: 'white', opacity: loading ? 0.6 : 1 }}>
+          style={{ background: '#1F7A5C', color: 'white', opacity: loading ? 0.6 : 1 }}>
           {loading ? 'Guardando...' : gastoEditar ? 'Guardar cambios' : 'Guardar gasto'}
         </button>
       </form>

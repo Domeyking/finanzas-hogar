@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { CAT_COLORS, fmt, fmtShort, CATEGORIAS } from '../lib/constants'
 import NuevoGasto from '../components/NuevoGasto'
 import CargaCSV from '../components/CargaCSV'
+import Categorias from './Categorias'
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Tooltip,
@@ -167,36 +168,36 @@ export default function Dashboard({ user }) {
   if (catDetalle) {
     const color = CAT_COLORS[catDetalle] || '#B4B2A9'
     return (
-      <div className="min-h-screen pb-8" style={{ background: '#fdf6f9' }}>
+      <div className="min-h-screen pb-8" style={{ background: '#f4faf7' }}>
         <div style={{ background: color }} className="px-4 pt-8 pb-16">
-          <div className="max-w-lg mx-auto">
+          <div className="max-w-2xl mx-auto">
             <button onClick={() => setCatDetalle(null)} style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }} className="flex items-center gap-2 mb-4">← Volver</button>
             <h1 style={{ color: 'white', fontSize: 22, fontWeight: 500 }}>{catDetalle}</h1>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{filtroAnio}</p>
           </div>
         </div>
-        <div className="max-w-lg mx-auto px-4 -mt-10 space-y-4">
+        <div className="max-w-2xl mx-auto px-4 -mt-10 space-y-4">
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: 'Total año',    value: fmtShort(totalCat),    sub: `${gastosDetalle.length} gastos` },
               { label: 'Promedio mes', value: fmtShort(promedioCat), sub: 'por mes activo' },
               { label: '% del total',  value: `${totalAnio > 0 ? Math.round(totalCat/totalAnio*100) : 0}%`, sub: 'del gasto anual' },
             ].map(m => (
-              <div key={m.label} className="card text-center" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+              <div key={m.label} className="card text-center" style={{ background: 'white', borderColor: '#d0ece4' }}>
                 <p className="text-xs text-slate-400 mb-0.5">{m.label}</p>
                 <p className="text-base font-medium text-slate-800">{m.value}</p>
                 <p className="text-xs text-slate-400">{m.sub}</p>
               </div>
             ))}
           </div>
-          <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+          <div className="card" style={{ background: 'white', borderColor: '#d0ece4' }}>
             <h3 className="text-sm font-medium text-slate-700 mb-3">Evolución mensual</h3>
             {gastosDetalle.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-4">Sin gastos este año</p>
             ) : (
               <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={evolucionCat} margin={{ top:4, right:4, left:0, bottom:0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#fce8f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e8f5f0" />
                   <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                   <YAxis tickFormatter={fmtShort} tick={{ fontSize: 10 }} width={44} />
                   <Tooltip formatter={v => fmt(v)} />
@@ -206,9 +207,9 @@ export default function Dashboard({ user }) {
             )}
           </div>
           {gastosDetalle.length > 0 && (
-            <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+            <div className="card" style={{ background: 'white', borderColor: '#d0ece4' }}>
               <h3 className="text-sm font-medium text-slate-700 mb-3">Todos los gastos — {gastosDetalle.length}</h3>
-              <div className="divide-y" style={{ borderColor: '#fce8f0' }}>
+              <div className="divide-y" style={{ borderColor: '#e8f5f0' }}>
                 {gastosDetalle.map(g => (
                   <div key={g.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                     <div className="flex-1 min-w-0">
@@ -228,7 +229,7 @@ export default function Dashboard({ user }) {
 
   // ── Vista principal ──
   return (
-    <div className="min-h-screen pb-8" style={{ background: '#fdf6f9' }}>
+    <div className="min-h-screen pb-8" style={{ background: '#f4faf7' }}>
 
       {toastMsg && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#1e293b', color: 'white', borderRadius: 12, padding: '10px 20px', fontSize: 13, zIndex: 100, whiteSpace: 'nowrap' }}>
@@ -236,13 +237,13 @@ export default function Dashboard({ user }) {
         </div>
       )}
 
-      <div style={{ background: '#D4537E' }} className="px-4 pt-8 pb-16">
-        <div className="max-w-lg mx-auto">
+      <div style={{ background: '#1F7A5C' }} className="px-4 pt-8 pb-16">
+        <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-4">
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                 <span style={{ fontSize: 18, fontWeight: 500, color: 'white' }}>Happy</span>
-                <span style={{ fontSize: 18, fontWeight: 500, color: 'white' }}>Wife</span>
+                <span style={{ fontSize: 18, fontWeight: 500, color: 'white' }}>Life</span>
               </div>
               <div style={{ width: 26, height: 2, background: 'rgba(255,255,255,0.6)', borderRadius: 2 }} />
             </div>
@@ -256,14 +257,14 @@ export default function Dashboard({ user }) {
               <button key={m} onClick={() => { setFiltroMes(i); setVistaAnual(false) }}
                 className="px-3 py-1 rounded-full text-xs font-medium transition-all"
                 style={!vistaAnual && filtroMes === i
-                  ? { background: 'white', color: '#D4537E' }
+                  ? { background: 'white', color: '#1F7A5C' }
                   : { background: 'rgba(255,255,255,0.2)', color: 'white' }}>
                 {m}
               </button>
             ))}
             <button onClick={() => setVistaAnual(true)}
               className="px-3 py-1 rounded-full text-xs font-medium transition-all"
-              style={vistaAnual ? { background: 'white', color: '#D4537E' } : { background: 'rgba(255,255,255,0.2)', color: 'white' }}>
+              style={vistaAnual ? { background: 'white', color: '#1F7A5C' } : { background: 'rgba(255,255,255,0.2)', color: 'white' }}>
               {filtroAnio}
             </button>
             <div className="flex gap-1 ml-1">
@@ -274,7 +275,7 @@ export default function Dashboard({ user }) {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 -mt-10 space-y-4">
+      <div className="max-w-2xl mx-auto px-4 -mt-10 space-y-4">
 
         <div className="grid grid-cols-3 gap-3">
           {(vistaAnual ? [
@@ -286,7 +287,7 @@ export default function Dashboard({ user }) {
             { label: 'Mi parte',   value: fmtShort(totalMio),          sub: `${misGastos.length} gastos` },
             { label: 'Pareja',     value: fmtShort(totalMes-totalMio), sub: `${gastos.length-misGastos.length} gastos` },
           ]).map(m => (
-            <div key={m.label} className="card text-center" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+            <div key={m.label} className="card text-center" style={{ background: 'white', borderColor: '#d0ece4' }}>
               <p className="text-xs text-slate-400 mb-0.5">{m.label}</p>
               <p className="text-base font-medium text-slate-800">{m.value}</p>
               <p className="text-xs text-slate-400">{m.sub}</p>
@@ -298,7 +299,7 @@ export default function Dashboard({ user }) {
           <div className="grid grid-cols-2 gap-3">
             <button onClick={() => { setGastoEditar(null); setShowForm(true) }}
               className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
-              style={{ background: '#D4537E', color: 'white' }}>
+              style={{ background: '#1F7A5C', color: 'white' }}>
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
@@ -306,7 +307,7 @@ export default function Dashboard({ user }) {
             </button>
             <button onClick={() => setShowCSV(true)}
               className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
-              style={{ background: 'white', color: '#D4537E', border: '1.5px solid #f0d6e0' }}>
+              style={{ background: 'white', color: '#1F7A5C', border: '1.5px solid #d0ece4' }}>
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
@@ -327,11 +328,11 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
             onCancel={() => setShowCSV(false)} />
         )}
 
-        <div className="flex rounded-xl p-1" style={{ background: '#fce8f0' }}>
-          {[['resumen','Resumen'],['lista','Gastos'],['anio','Gráfico']].map(([k, label]) => (
+        <div className="flex rounded-xl p-1" style={{ background: '#e8f5f0' }}>
+          {[['resumen','Resumen'],['lista','Gastos'],['anio','Gráfico'],['categorias','Categorías']].map(([k, label]) => (
             <button key={k} onClick={() => { setVistaTab(k); setModoSeleccion(false); setSeleccion(new Set()) }}
               className="flex-1 py-1.5 text-sm font-medium rounded-lg transition-all"
-              style={vistaTab === k ? { background: 'white', color: '#D4537E' } : { color: '#9ca3af' }}>
+              style={vistaTab === k ? { background: 'white', color: '#1F7A5C' } : { color: '#9ca3af' }}>
               {label}
             </button>
           ))}
@@ -339,16 +340,16 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
 
         {loading && <p className="text-center text-sm text-slate-400 py-8">Cargando...</p>}
 
-        {/* Vista resumen */}
-        {!loading && vistaTab === 'resumen' && (
-          <>
+        {!loading && vistaTab !== 'categorias' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={`space-y-4 ${vistaTab !== 'resumen' ? 'hidden md:block' : ''}`}>
             {(vistaAnual ? gastosAnio : gastos).length === 0 ? (
-              <div className="card text-center py-10" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+              <div className="card text-center py-10" style={{ background: 'white', borderColor: '#d0ece4' }}>
                 <p className="text-slate-400 text-sm">Sin gastos en {vistaAnual ? filtroAnio : `${MESES[filtroMes]} ${filtroAnio}`}</p>
               </div>
             ) : (
               <>
-                <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+                <div className="card" style={{ background: 'white', borderColor: '#d0ece4' }}>
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="text-sm font-medium text-slate-700">Por categoría</h3>
                     <span className="text-xs text-slate-400">Toca para ver detalle</span>
@@ -378,28 +379,25 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                   </div>
                 </div>
                 {(vistaAnual ? porPersonaAnio : porPersona).length > 1 && (
-                  <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+                  <div className="card" style={{ background: 'white', borderColor: '#d0ece4' }}>
                     <h3 className="text-sm font-medium text-slate-700 mb-3">Por persona</h3>
                     <ResponsiveContainer width="100%" height={120}>
                       <BarChart data={vistaAnual ? porPersonaAnio : porPersona} margin={{ top:0, right:0, left:0, bottom:0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#fce8f0" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e8f5f0" />
                         <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                         <YAxis tickFormatter={fmtShort} tick={{ fontSize: 11 }} width={50} />
-                        <Bar dataKey="value" fill="#D4537E" radius={[6,6,0,0]} />
+                        <Bar dataKey="value" fill="#1F7A5C" radius={[6,6,0,0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 )}
               </>
             )}
-          </>
-        )}
+            </div>
 
-        {/* Vista lista con selección múltiple */}
-        {!loading && vistaTab === 'lista' && (
-          <>
+            <div className={`space-y-4 ${vistaTab !== 'lista' ? 'hidden md:block' : ''}`}>
             {gastos.length === 0 ? (
-              <div className="card text-center py-10" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+              <div className="card text-center py-10" style={{ background: 'white', borderColor: '#d0ece4' }}>
                 <p className="text-slate-400 text-sm">Sin gastos en {MESES[filtroMes]} {filtroAnio}</p>
               </div>
             ) : (
@@ -407,7 +405,7 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                 {/* Barra de selección múltiple */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button onClick={() => { setModoSeleccion(!modoSeleccion); setSeleccion(new Set()) }}
-                    style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, border: '0.5px solid #f0d6e0', background: modoSeleccion ? '#fce8f0' : 'white', color: modoSeleccion ? '#D4537E' : '#94a3b8', cursor: 'pointer' }}>
+                    style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, border: '0.5px solid #d0ece4', background: modoSeleccion ? '#e8f5f0' : 'white', color: modoSeleccion ? '#1F7A5C' : '#94a3b8', cursor: 'pointer' }}>
                     {modoSeleccion ? 'Cancelar' : 'Seleccionar'}
                   </button>
                   {modoSeleccion && (
@@ -415,7 +413,7 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                       <input type="checkbox" checked={todosSelec}
                         ref={el => { if (el) el.indeterminate = algunosSelec }}
                         onChange={toggleTodos}
-                        style={{ accentColor: '#D4537E', cursor: 'pointer', width: 15, height: 15 }} />
+                        style={{ accentColor: '#1F7A5C', cursor: 'pointer', width: 15, height: 15 }} />
                       <span style={{ fontSize: 12, color: '#94a3b8', flex: 1 }}>{seleccion.size} seleccionados</span>
                       {seleccion.size > 0 && (
                         <button onClick={borrarSeleccionados}
@@ -427,15 +425,15 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                   )}
                 </div>
 
-                <div className="card divide-y" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+                <div className="card divide-y" style={{ background: 'white', borderColor: '#d0ece4' }}>
                   {gastos.map(g => (
                     <div key={g.id}
                       className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
-                      style={{ borderColor: '#fce8f0', background: seleccion.has(g.id) ? '#fdf0f4' : 'white' }}>
+                      style={{ borderColor: '#e8f5f0', background: seleccion.has(g.id) ? '#f0faf6' : 'white' }}>
                       {modoSeleccion && g.user_id === user.id && (
                         <input type="checkbox" checked={seleccion.has(g.id)}
                           onChange={() => toggleSeleccion(g.id)}
-                          style={{ marginTop: 3, accentColor: '#D4537E', cursor: 'pointer', flexShrink: 0 }} />
+                          style={{ marginTop: 3, accentColor: '#1F7A5C', cursor: 'pointer', flexShrink: 0 }} />
                       )}
                       <div className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5"
                         style={{ backgroundColor: (CAT_COLORS[g.categoria] || '#888780') + '22' }}>
@@ -446,7 +444,7 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                         <p className="text-xs text-slate-400">{g.categoria} · {g.user_name} · {g.fecha}</p>
                       </div>
                       <div className="text-right flex-shrink-0 flex flex-col gap-1">
-                        <p className="text-sm font-medium" style={{ color: '#D4537E' }}>{fmt(g.monto)}</p>
+                        <p className="text-sm font-medium" style={{ color: '#1F7A5C' }}>{fmt(g.monto)}</p>
                         {!modoSeleccion && g.user_id === user.id && (
                           <div className="flex gap-2 justify-end">
                             <button onClick={() => editarGasto(g)} className="text-xs text-slate-400 hover:text-slate-600">Editar</button>
@@ -459,15 +457,15 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                 </div>
               </>
             )}
-          </>
+            </div>
+          </div>
         )}
 
-        {/* Vista gráfico anual */}
-        {!loading && vistaTab === 'anio' && (
-          <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+        {!loading && vistaTab !== 'categorias' && (
+          <div className={`card ${vistaTab !== 'anio' ? 'hidden md:block' : ''}`} style={{ background: 'white', borderColor: '#d0ece4' }}>
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-medium text-slate-700">Gasto anual {filtroAnio}</h3>
-              <span className="text-sm font-medium" style={{ color: '#D4537E' }}>{fmt(totalAnio)}</span>
+              <span className="text-sm font-medium" style={{ color: '#1F7A5C' }}>{fmt(totalAnio)}</span>
             </div>
             <p className="text-xs text-slate-400 mb-4">Top {top10.length} categorías por mes</p>
             {gastosAnio.length === 0 ? (
@@ -476,7 +474,7 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
               <>
                 <ResponsiveContainer width="100%" height={260}>
                   <BarChart data={datosAnuales} margin={{ top:0, right:0, left:0, bottom:0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#fce8f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e8f5f0" />
                     <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={fmtShort} tick={{ fontSize: 10 }} width={44} />
                     {barKeys.map((key, i) => (
@@ -507,6 +505,8 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
             )}
           </div>
         )}
+
+        {!loading && vistaTab === 'categorias' && <Categorias />}
       </div>
     </div>
   )

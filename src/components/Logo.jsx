@@ -20,15 +20,15 @@ export default function Logo({ size = 'md', dark = false }) {
           fontSize: s.text,
           fontWeight: 500,
           letterSpacing: '-0.3px',
-          color: '#D4537E',
+          color: '#1F7A5C',
         }}>
-          Wife
+          Life
         </span>
       </div>
       <div style={{
         width: s.bar,
         height: 2,
-        background: '#D4537E',
+        background: '#1F7A5C',
         borderRadius: 2,
       }} />
     </div>

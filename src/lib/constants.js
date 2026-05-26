@@ -32,7 +32,7 @@ export const CAT_COLORS = {
   'Salud':                      '#E24B4A',
   'Educación':                  '#185FA5',
   'Entretenimiento':            '#D85A30',
-  'Ropa / calzado':             '#D4537E',
+  'Ropa / calzado':             '#1F7A5C',
   'Hogar / servicios básicos':  '#BA7517',
   'Tecnología':                 '#7F77DD',
   'Viajes':                     '#0F6E56',

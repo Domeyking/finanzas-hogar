@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { categorizarTransacciones, guardarRegla } from '../lib/anthropic'
-import { CATEGORIAS, FUENTES, CAT_COLORS, fmt } from '../lib/constants'
+import { FUENTES, fmt } from '../lib/constants'
+import { useCategorias } from '../lib/categorias'
 
 function parsearCSV(texto) {
   const lineas = texto.trim().split('\n').filter(l => l.trim())
@@ -36,6 +37,7 @@ function normalizarFecha(str) {
 }
 
 export default function CargaCSV({ user, onDone, onCancel }) {
+  const { nombres: CATEGORIAS, colores: CAT_COLORS } = useCategorias()
   const [paso, setPaso]           = useState('subir')
   const [transacciones, setTrans] = useState([])
   const [error, setError]         = useState('')
@@ -153,7 +155,7 @@ export default function CargaCSV({ user, onDone, onCancel }) {
   }
 
   return (
-    <div className="card" style={{ background: 'white', borderColor: '#f0d6e0' }}>
+    <div className="card" style={{ background: 'white', borderColor: '#d0ece4' }}>
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-medium text-slate-800">Cargar cartola</h2>
         {onCancel && <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>}
@@ -161,18 +163,18 @@ export default function CargaCSV({ user, onDone, onCancel }) {
 
       {paso === 'subir' && (
         <div className="space-y-4">
-          <div style={{ background: '#fdf0f4', borderRadius: 12, padding: '1rem', fontSize: 13, color: '#9b4468', lineHeight: 1.6 }}>
+          <div style={{ background: '#f0faf6', borderRadius: 12, padding: '1rem', fontSize: 13, color: '#155941', lineHeight: 1.6 }}>
             <strong>¿Cómo exportar tu cartola?</strong><br />
             Banco de Chile, BCI, Santander, Scotiabank: movimientos → exportar → elige <strong>CSV o Excel</strong>.
           </div>
-          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, border: '1.5px dashed #f0d6e0', borderRadius: 12, padding: '2rem 1rem', cursor: 'pointer', background: '#fdf6f9' }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#D4537E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, border: '1.5px dashed #d0ece4', borderRadius: 12, padding: '2rem 1rem', cursor: 'pointer', background: '#f4faf7' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1F7A5C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            <span style={{ fontSize: 14, color: '#D4537E', fontWeight: 500 }}>Seleccionar archivo CSV</span>
-            <span style={{ fontSize: 12, color: '#b0899a' }}>CSV, XLS o XLSX</span>
+            <span style={{ fontSize: 14, color: '#1F7A5C', fontWeight: 500 }}>Seleccionar archivo CSV</span>
+            <span style={{ fontSize: 12, color: '#7da89b' }}>CSV, XLS o XLSX</span>
             <input type="file" accept=".csv,.xls,.xlsx,.txt" onChange={handleArchivo} style={{ display: 'none' }} />
           </label>
           {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg p-2.5">{error}</p>}
@@ -181,12 +183,12 @@ export default function CargaCSV({ user, onDone, onCancel }) {
 
       {paso === 'procesando' && (
         <div className="text-center py-8 space-y-4">
-          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid #f0d6e0', borderTopColor: '#D4537E', margin: '0 auto', animation: 'spin 1s linear infinite' }} />
-          <p style={{ fontSize: 14, color: '#D4537E', fontWeight: 500 }}>Categorizando con IA...</p>
-          <div style={{ background: '#fce8f0', borderRadius: 99, height: 6, overflow: 'hidden' }}>
-            <div style={{ height: 6, background: '#D4537E', borderRadius: 99, width: progreso + '%', transition: 'width 0.3s' }} />
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid #d0ece4', borderTopColor: '#1F7A5C', margin: '0 auto', animation: 'spin 1s linear infinite' }} />
+          <p style={{ fontSize: 14, color: '#1F7A5C', fontWeight: 500 }}>Categorizando con IA...</p>
+          <div style={{ background: '#e8f5f0', borderRadius: 99, height: 6, overflow: 'hidden' }}>
+            <div style={{ height: 6, background: '#1F7A5C', borderRadius: 99, width: progreso + '%', transition: 'width 0.3s' }} />
           </div>
-          <p style={{ fontSize: 12, color: '#b0899a' }}>{progreso}% completado</p>
+          <p style={{ fontSize: 12, color: '#7da89b' }}>{progreso}% completado</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
       )}
@@ -203,7 +205,7 @@ export default function CargaCSV({ user, onDone, onCancel }) {
                 </div>
               )}
               {stats.ia > 0 && (
-                <div style={{ background: '#fdf0f4', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: '#9b4468', flex: 1, textAlign: 'center' }}>
+                <div style={{ background: '#f0faf6', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: '#155941', flex: 1, textAlign: 'center' }}>
                   ✨ {stats.ia} categorizadas por IA
                 </div>
               )}
@@ -211,18 +213,18 @@ export default function CargaCSV({ user, onDone, onCancel }) {
           )}
 
           {/* Barra superior */}
-          <div style={{ background: '#fdf0f4', borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ background: '#f0faf6', borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <input type="checkbox" checked={todos}
               ref={el => { if (el) el.indeterminate = algunos }}
               onChange={toggleTodos}
-              style={{ accentColor: '#D4537E', cursor: 'pointer', width: 16, height: 16 }} />
-            <span style={{ fontSize: 13, color: '#9b4468', flex: 1 }}>
+              style={{ accentColor: '#1F7A5C', cursor: 'pointer', width: 16, height: 16 }} />
+            <span style={{ fontSize: 13, color: '#155941', flex: 1 }}>
               <strong>{seleccionados.length}</strong> de {transacciones.length} · {fmt(total)}
             </span>
             {seleccionados.length > 0 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <select onChange={e => { if (e.target.value) { cambiarCategoriaSeleccionados(e.target.value); e.target.value = '' }}}
-                  style={{ fontSize: 11, padding: '4px 8px', borderRadius: 8, border: '0.5px solid #f0d6e0', background: 'white', color: '#9b4468', cursor: 'pointer' }}>
+                  style={{ fontSize: 11, padding: '4px 8px', borderRadius: 8, border: '0.5px solid #d0ece4', background: 'white', color: '#155941', cursor: 'pointer' }}>
                   <option value="">Cambiar categoría...</option>
                   {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
                 </select>
@@ -233,26 +235,26 @@ export default function CargaCSV({ user, onDone, onCancel }) {
               </div>
             )}
             <button onClick={guardarTodo} disabled={seleccionados.length === 0}
-              style={{ fontSize: 12, padding: '6px 14px', borderRadius: 10, background: seleccionados.length > 0 ? '#D4537E' : '#e5e7eb', color: seleccionados.length > 0 ? 'white' : '#9ca3af', border: 'none', cursor: seleccionados.length > 0 ? 'pointer' : 'default', fontWeight: 500 }}>
+              style={{ fontSize: 12, padding: '6px 14px', borderRadius: 10, background: seleccionados.length > 0 ? '#1F7A5C' : '#e5e7eb', color: seleccionados.length > 0 ? 'white' : '#9ca3af', border: 'none', cursor: seleccionados.length > 0 ? 'pointer' : 'default', fontWeight: 500 }}>
               Importar {seleccionados.length}
             </button>
           </div>
 
-          <p style={{ fontSize: 12, color: '#b0899a' }}>
+          <p style={{ fontSize: 12, color: '#7da89b' }}>
             Si corriges una categoría, la app la recordará para la próxima carga.
           </p>
 
           <div style={{ maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {transacciones.map(t => (
               <div key={t.id} style={{
-                border: `0.5px solid ${t.incluir ? '#f0d6e0' : '#e5e7eb'}`,
+                border: `0.5px solid ${t.incluir ? '#d0ece4' : '#e5e7eb'}`,
                 borderRadius: 10, padding: '8px 12px',
                 background: t.incluir ? 'white' : '#f9fafb',
                 opacity: t.incluir ? 1 : 0.5,
               }}>
                 <div className="flex items-start gap-3">
                   <input type="checkbox" checked={t.incluir} onChange={() => toggleIncluir(t.id)}
-                    style={{ marginTop: 3, accentColor: '#D4537E', cursor: 'pointer' }} />
+                    style={{ marginTop: 3, accentColor: '#1F7A5C', cursor: 'pointer' }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1 flex-1 min-w-0">
@@ -261,17 +263,17 @@ export default function CargaCSV({ user, onDone, onCancel }) {
                           <span title="Categoría aprendida" style={{ fontSize: 10, background: '#e8f5e9', color: '#2e7d32', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>🧠</span>
                         )}
                       </div>
-                      <p style={{ fontSize: 13, fontWeight: 500, color: '#D4537E', flexShrink: 0, margin: 0 }}>{fmt(t.monto)}</p>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: '#1F7A5C', flexShrink: 0, margin: 0 }}>{fmt(t.monto)}</p>
                     </div>
                     <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 6px' }}>{t.fecha}</p>
                     <div className="flex gap-2 flex-wrap items-center">
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: CAT_COLORS[t.categoria] || '#B4B2A9', flexShrink: 0 }} />
                       <select value={t.categoria} onChange={e => cambiarCategoria(t.id, e.target.value)}
-                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, border: `0.5px solid ${t.categoria !== t.categoriaOriginal ? '#D4537E' : '#f0d6e0'}`, background: t.categoria !== t.categoriaOriginal ? '#fdf0f4' : '#fdf6f9', color: '#9b4468', cursor: 'pointer' }}>
+                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, border: `0.5px solid ${t.categoria !== t.categoriaOriginal ? '#1F7A5C' : '#d0ece4'}`, background: t.categoria !== t.categoriaOriginal ? '#f0faf6' : '#f4faf7', color: '#155941', cursor: 'pointer' }}>
                         {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
                       </select>
                       <select value={t.fuente} onChange={e => cambiarFuente(t.id, e.target.value)}
-                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '0.5px solid #f0d6e0', background: '#fdf6f9', color: '#9b4468', cursor: 'pointer' }}>
+                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '0.5px solid #d0ece4', background: '#f4faf7', color: '#155941', cursor: 'pointer' }}>
                         {FUENTES.map(f => <option key={f}>{f}</option>)}
                       </select>
                     </div>
@@ -287,8 +289,8 @@ export default function CargaCSV({ user, onDone, onCancel }) {
 
       {paso === 'guardando' && (
         <div className="text-center py-8">
-          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid #f0d6e0', borderTopColor: '#D4537E', margin: '0 auto', animation: 'spin 1s linear infinite' }} />
-          <p style={{ fontSize: 14, color: '#D4537E', fontWeight: 500, marginTop: 12 }}>Guardando y aprendiendo...</p>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid #d0ece4', borderTopColor: '#1F7A5C', margin: '0 auto', animation: 'spin 1s linear infinite' }} />
+          <p style={{ fontSize: 14, color: '#1F7A5C', fontWeight: 500, marginTop: 12 }}>Guardando y aprendiendo...</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
         </div>
       )}
