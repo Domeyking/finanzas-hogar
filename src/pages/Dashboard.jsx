@@ -470,7 +470,9 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-slate-800 truncate">{g.descripcion}</p>
-                        <p className="text-xs text-slate-400">{g.categoria} · {g.user_name} · {g.fecha}</p>
+                        <p className="text-xs text-slate-400">
+                          {g.categoria}{g.subcategoria ? ` › ${g.subcategoria}` : ''} · {g.user_name} · {g.fecha}
+                        </p>
                       </div>
                       <div className="text-right flex-shrink-0 flex flex-col gap-1">
                         <p className="text-sm font-medium" style={{ color: '#1F7A5C' }}>{fmt(g.monto)}</p>

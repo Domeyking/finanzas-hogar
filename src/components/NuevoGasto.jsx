@@ -4,7 +4,7 @@ import { FUENTES } from '../lib/constants'
 import { useCategorias, subcategoriasDe } from '../lib/categorias'
 
 export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEditar }) {
-  const { nombres: CATEGORIAS, items } = useCategorias(cuentaId)
+  const { nombres: CATEGORIAS, items, cargando } = useCategorias(cuentaId)
   const hoy = new Date().toISOString().split('T')[0]
   const [form, setForm] = useState({
     fecha: hoy,
@@ -42,10 +42,13 @@ export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEdi
   const subs = subcategoriasDe(items, form.categoria)
 
   useEffect(() => {
-    if (!subs.find(s => s.nombre === form.subcategoria)) {
+    // No limpiar mientras las categorías cargan: subs podría estar vacío
+    // sólo porque todavía no llegó la data, y borraríamos un valor válido.
+    if (cargando) return
+    if (form.subcategoria && !subs.find(s => s.nombre === form.subcategoria)) {
       setForm(f => ({ ...f, subcategoria: '' }))
     }
-  }, [form.categoria]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.categoria, cargando]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
