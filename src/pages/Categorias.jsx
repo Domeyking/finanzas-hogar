@@ -107,12 +107,39 @@ export default function Categorias({ cuentaId }) {
       })
       if (error) { setError(error.message); return }
     } else {
+      const oldName = editing.nombre
+      const newName = form.nombre.trim()
       const { error } = await supabase.from('categorias').update({
-        nombre: form.nombre.trim(),
+        nombre: newName,
         color:  form.color || COLOR_DEFAULT,
         icono:  form.icono || null,
       }).eq('id', editing.id)
       if (error) { setError(error.message); return }
+
+      // gastos.categoria / gastos.subcategoria guardan el nombre como texto,
+      // así que al renombrar la categoría hay que propagar el nuevo nombre
+      // a los gastos existentes para que no queden con un texto huérfano.
+      if (oldName !== newName && cuentaId) {
+        if (editing.parent_id) {
+          await supabase
+            .from('gastos')
+            .update({ subcategoria: newName })
+            .eq('cuenta_id', cuentaId)
+            .eq('subcategoria', oldName)
+        } else {
+          await supabase
+            .from('gastos')
+            .update({ categoria: newName })
+            .eq('cuenta_id', cuentaId)
+            .eq('categoria', oldName)
+          // Reglas aprendidas también guardan el nombre como texto
+          await supabase
+            .from('reglas_categoria')
+            .update({ categoria: newName })
+            .eq('cuenta_id', cuentaId)
+            .eq('categoria', oldName)
+        }
+      }
     }
     cancelEdit()
     load()
