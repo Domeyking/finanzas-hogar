@@ -59,7 +59,7 @@ alter table public.invitaciones enable row level security;
 drop policy if exists "Ver cuentas propias" on public.cuentas;
 create policy "Ver cuentas propias"
   on public.cuentas for select
-  using (public.user_in_cuenta(id));
+  using (public.user_in_cuenta(id) or auth.uid() = owner_id);
 
 drop policy if exists "Crear cuenta" on public.cuentas;
 create policy "Crear cuenta"
