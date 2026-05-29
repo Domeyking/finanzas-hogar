@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { CAT_COLORS, fmt, fmtShort, CATEGORIAS } from '../lib/constants'
 import NuevoGasto from '../components/NuevoGasto'
 import CargaCSV from '../components/CargaCSV'
+import CuentaMenu from '../components/CuentaMenu'
 import Categorias from './Categorias'
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
@@ -11,7 +12,9 @@ import {
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
-export default function Dashboard({ user }) {
+export default function Dashboard({ user, cuentaCtx }) {
+  const { cuentaActiva, cuentas, setCuentaActiva, reload: reloadCuentas } = cuentaCtx
+  const cuentaId = cuentaActiva?.id
   const [gastos, setGastos]           = useState([])
   const [gastosAnio, setGastosAnio]   = useState([])
   const [loading, setLoading]         = useState(true)
@@ -26,6 +29,7 @@ export default function Dashboard({ user }) {
   const [toastMsg, setToastMsg]       = useState('')
   const [seleccion, setSeleccion]     = useState(new Set())
   const [modoSeleccion, setModoSeleccion] = useState(false)
+  const [showCuentaMenu, setShowCuentaMenu] = useState(false)
 
   const userName = user.user_metadata?.full_name || user.email.split('@')[0]
 
@@ -35,25 +39,29 @@ export default function Dashboard({ user }) {
   }
 
   const fetchGastos = useCallback(async () => {
+    if (!cuentaId) return
     setLoading(true)
     const inicio = `${filtroAnio}-${String(filtroMes + 1).padStart(2, '0')}-01`
     const fin    = new Date(filtroAnio, filtroMes + 1, 0).toISOString().split('T')[0]
     const { data } = await supabase
       .from('gastos').select('*')
+      .eq('cuenta_id', cuentaId)
       .gte('fecha', inicio).lte('fecha', fin)
       .order('fecha', { ascending: false })
     setGastos(data || [])
     setSeleccion(new Set())
     setLoading(false)
-  }, [filtroMes, filtroAnio])
+  }, [filtroMes, filtroAnio, cuentaId])
 
   const fetchGastosAnio = useCallback(async () => {
+    if (!cuentaId) return
     const { data } = await supabase
       .from('gastos').select('*')
+      .eq('cuenta_id', cuentaId)
       .gte('fecha', `${filtroAnio}-01-01`)
       .lte('fecha', `${filtroAnio}-12-31`)
     setGastosAnio(data || [])
-  }, [filtroAnio])
+  }, [filtroAnio, cuentaId])
 
   useEffect(() => { fetchGastos(); fetchGastosAnio() }, [fetchGastos, fetchGastosAnio])
 
@@ -231,6 +239,17 @@ export default function Dashboard({ user }) {
   return (
     <div className="min-h-screen pb-8" style={{ background: '#f4faf7' }}>
 
+      {showCuentaMenu && (
+        <CuentaMenu
+          user={user}
+          cuentas={cuentas}
+          cuentaActiva={cuentaActiva}
+          onSwitch={setCuentaActiva}
+          onClose={() => setShowCuentaMenu(false)}
+          onReload={reloadCuentas}
+        />
+      )}
+
       {toastMsg && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#1e293b', color: 'white', borderRadius: 12, padding: '10px 20px', fontSize: 13, zIndex: 100, whiteSpace: 'nowrap' }}>
           {toastMsg}
@@ -252,6 +271,15 @@ export default function Dashboard({ user }) {
               <button onClick={async () => await supabase.auth.signOut()} style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }} className="hover:text-white">Salir</button>
             </div>
           </div>
+
+          <button onClick={() => setShowCuentaMenu(true)}
+            className="flex items-center gap-2 mb-4 px-3 py-1.5 rounded-lg"
+            style={{ background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: 13 }}>
+            <span style={{ opacity: 0.7 }}>Cuenta:</span>
+            <strong>{cuentaActiva?.nombre || '—'}</strong>
+            <span style={{ opacity: 0.6 }}>▾</span>
+          </button>
+
           <div className="flex gap-2 flex-wrap">
             {MESES.map((m, i) => (
               <button key={m} onClick={() => { setFiltroMes(i); setVistaAnual(false) }}
@@ -317,13 +345,13 @@ export default function Dashboard({ user }) {
         )}
 
         {showForm && (
-          <NuevoGasto user={user} gastoEditar={gastoEditar}
+          <NuevoGasto user={user} cuentaId={cuentaId} gastoEditar={gastoEditar}
             onSaved={() => { cerrarForm(); fetchGastos(); fetchGastosAnio() }}
             onCancel={cerrarForm} />
         )}
 
         {showCSV && (
-          <CargaCSV user={user}
+          <CargaCSV user={user} cuentaId={cuentaId}
 onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio(); showToast(`✓ ${n} gastos importados${aprendidas > 0 ? ` · 🧠 ${aprendidas} reglas nuevas aprendidas` : ''}`) }}
             onCancel={() => setShowCSV(false)} />
         )}
@@ -340,9 +368,8 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
 
         {loading && <p className="text-center text-sm text-slate-400 py-8">Cargando...</p>}
 
-        {!loading && vistaTab !== 'categorias' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className={`space-y-4 ${vistaTab !== 'resumen' ? 'hidden md:block' : ''}`}>
+        {!loading && vistaTab === 'resumen' && (
+          <>
             {(vistaAnual ? gastosAnio : gastos).length === 0 ? (
               <div className="card text-center py-10" style={{ background: 'white', borderColor: '#d0ece4' }}>
                 <p className="text-slate-400 text-sm">Sin gastos en {vistaAnual ? filtroAnio : `${MESES[filtroMes]} ${filtroAnio}`}</p>
@@ -393,9 +420,11 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                 )}
               </>
             )}
-            </div>
+          </>
+        )}
 
-            <div className={`space-y-4 ${vistaTab !== 'lista' ? 'hidden md:block' : ''}`}>
+        {!loading && vistaTab === 'lista' && (
+          <>
             {gastos.length === 0 ? (
               <div className="card text-center py-10" style={{ background: 'white', borderColor: '#d0ece4' }}>
                 <p className="text-slate-400 text-sm">Sin gastos en {MESES[filtroMes]} {filtroAnio}</p>
@@ -457,12 +486,11 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                 </div>
               </>
             )}
-            </div>
-          </div>
+          </>
         )}
 
-        {!loading && vistaTab !== 'categorias' && (
-          <div className={`card ${vistaTab !== 'anio' ? 'hidden md:block' : ''}`} style={{ background: 'white', borderColor: '#d0ece4' }}>
+        {!loading && vistaTab === 'anio' && (
+          <div className="card" style={{ background: 'white', borderColor: '#d0ece4' }}>
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-medium text-slate-700">Gasto anual {filtroAnio}</h3>
               <span className="text-sm font-medium" style={{ color: '#1F7A5C' }}>{fmt(totalAnio)}</span>
@@ -506,7 +534,7 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
           </div>
         )}
 
-        {!loading && vistaTab === 'categorias' && <Categorias />}
+        {!loading && vistaTab === 'categorias' && <Categorias cuentaId={cuentaId} />}
       </div>
     </div>
   )

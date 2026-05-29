@@ -1,40 +1,68 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { sembrarCategoriasSiVacio } from '../lib/cuentas'
 
 const COLOR_DEFAULT = '#1F7A5C'
 
-export default function Categorias() {
+export default function Categorias({ cuentaId }) {
   const [categorias, setCategorias] = useState([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
   const [editing, setEditing]       = useState(null) // category object or 'new'
   const [parentForNew, setParentNew] = useState(null)
   const [expanded, setExpanded]     = useState(new Set())
+  const [reassign, setReassign]     = useState(null) // { cat, gastos }
 
   async function load() {
+    if (!cuentaId) { setLoading(false); return }
     setLoading(true)
+    await sembrarCategoriasSiVacio(cuentaId)
     const { data, error } = await supabase
       .from('categorias')
       .select('*')
+      .eq('cuenta_id', cuentaId)
       .order('orden', { ascending: true })
     if (error) setError(error.message)
     setCategorias(data || [])
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [cuentaId])
 
   const principales = categorias.filter(c => !c.parent_id).sort((a, b) => a.orden - b.orden)
   const subsDe = (id) => categorias.filter(c => c.parent_id === id).sort((a, b) => a.orden - b.orden)
 
-  async function eliminar(cat) {
-    const hijos = subsDe(cat.id).length
-    const msg = hijos > 0
-      ? `¿Eliminar "${cat.nombre}" y sus ${hijos} subcategoría(s)?`
-      : `¿Eliminar "${cat.nombre}"?`
-    if (!confirm(msg)) return
+  async function intentarEliminar(cat) {
+    const idsAfectados = [cat.id, ...categorias.filter(c => c.parent_id === cat.id).map(c => c.id)]
+    const nombresAfectados = [cat.nombre, ...categorias.filter(c => c.parent_id === cat.id).map(c => c.nombre)]
+    const { data: gastosAfectados } = await supabase
+      .from('gastos')
+      .select('id, fecha, descripcion, monto, categoria, subcategoria')
+      .eq('cuenta_id', cuentaId)
+      .in('categoria', nombresAfectados)
+
+    if (gastosAfectados && gastosAfectados.length > 0) {
+      setReassign({ cat, gastos: gastosAfectados, idsAfectados, nombresAfectados })
+      return
+    }
+    await eliminarCategoria(cat)
+  }
+
+  async function eliminarCategoria(cat) {
     const { error } = await supabase.from('categorias').delete().eq('id', cat.id)
     if (error) setError(error.message)
+    load()
+  }
+
+  async function reassignAndDelete(nuevaCategoria) {
+    const { error } = await supabase
+      .from('gastos')
+      .update({ categoria: nuevaCategoria, subcategoria: null })
+      .eq('cuenta_id', cuentaId)
+      .in('categoria', reassign.nombresAfectados)
+    if (error) { setError(error.message); return }
+    await supabase.from('categorias').delete().eq('id', reassign.cat.id)
+    setReassign(null)
     load()
   }
 
@@ -58,31 +86,18 @@ export default function Categorias() {
     load()
   }
 
-  function startNew(parentId = null) {
-    setEditing('new')
-    setParentNew(parentId)
-  }
-
-  function startEdit(cat) {
-    setEditing(cat)
-    setParentNew(null)
-  }
-
-  function cancelEdit() {
-    setEditing(null)
-    setParentNew(null)
-  }
+  function startNew(parentId = null) { setEditing('new'); setParentNew(parentId) }
+  function startEdit(cat) { setEditing(cat); setParentNew(null) }
+  function cancelEdit() { setEditing(null); setParentNew(null) }
 
   async function save(form) {
     setError('')
     if (!form.nombre.trim()) { setError('El nombre es obligatorio'); return }
 
     if (editing === 'new') {
-      const ordenMax = Math.max(
-        0,
-        ...categorias.filter(c => c.parent_id === parentForNew).map(c => c.orden || 0)
-      )
+      const ordenMax = Math.max(0, ...categorias.filter(c => c.parent_id === parentForNew).map(c => c.orden || 0))
       const { error } = await supabase.from('categorias').insert({
+        cuenta_id: cuentaId,
         nombre:    form.nombre.trim(),
         parent_id: parentForNew,
         color:     form.color || COLOR_DEFAULT,
@@ -117,6 +132,15 @@ export default function Categorias() {
 
   return (
     <div className="space-y-3">
+      {reassign && (
+        <ReassignModal
+          reassign={reassign}
+          categorias={categorias.filter(c => !c.parent_id && !reassign.idsAfectados.includes(c.id))}
+          onCancel={() => setReassign(null)}
+          onConfirm={reassignAndDelete}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-slate-700">
           {categorias.length} categoría{categorias.length === 1 ? '' : 's'}
@@ -130,9 +154,7 @@ export default function Categorias() {
         )}
       </div>
 
-      {error && (
-        <p className="text-xs text-red-500 bg-red-50 rounded-lg p-2.5">{error}</p>
-      )}
+      {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg p-2.5">{error}</p>}
 
       {editing !== null && (
         <CategoriaForm
@@ -164,7 +186,7 @@ export default function Categorias() {
                 onMoveUp={() => mover(cat, -1)}
                 onMoveDown={() => mover(cat, 1)}
                 onEdit={() => startEdit(cat)}
-                onDelete={() => eliminar(cat)}
+                onDelete={() => intentarEliminar(cat)}
                 onToggleActiva={() => toggleActiva(cat)}
                 onAddChild={() => startNew(cat.id)}
                 onToggleExpand={subs.length > 0 ? () => toggleExpand(cat.id) : null}
@@ -182,7 +204,7 @@ export default function Categorias() {
                       onMoveUp={() => mover(sub, -1)}
                       onMoveDown={() => mover(sub, 1)}
                       onEdit={() => startEdit(sub)}
-                      onDelete={() => eliminar(sub)}
+                      onDelete={() => intentarEliminar(sub)}
                       onToggleActiva={() => toggleActiva(sub)}
                       isSub
                     />
@@ -203,11 +225,7 @@ function CategoriaRow({
 }) {
   return (
     <div className="card flex items-center gap-2 py-2.5 px-3"
-      style={{
-        background: 'white',
-        borderColor: '#d0ece4',
-        opacity: cat.activa === false ? 0.5 : 1,
-      }}>
+      style={{ background: 'white', borderColor: '#d0ece4', opacity: cat.activa === false ? 0.5 : 1 }}>
       <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
         style={{ background: (cat.color || '#888780') + '22' }}>
         {cat.icono
@@ -228,15 +246,12 @@ function CategoriaRow({
 
       <div className="flex items-center gap-1 flex-shrink-0">
         <button onClick={onMoveUp} disabled={isFirst}
-          className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-          title="Subir">↑</button>
+          className="w-6 h-6 rounded text-slate-400 hover:text-slate-700 disabled:opacity-30">↑</button>
         <button onClick={onMoveDown} disabled={isLast}
-          className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-          title="Bajar">↓</button>
+          className="w-6 h-6 rounded text-slate-400 hover:text-slate-700 disabled:opacity-30">↓</button>
         {!isSub && onAddChild && (
           <button onClick={onAddChild}
-            className="text-xs px-2 py-1 rounded text-slate-500 hover:bg-slate-100"
-            title="Agregar subcategoría">+ sub</button>
+            className="text-xs px-2 py-1 rounded text-slate-500 hover:bg-slate-100">+ sub</button>
         )}
         <button onClick={onToggleActiva}
           className="text-xs px-2 py-1 rounded text-slate-500 hover:bg-slate-100"
@@ -244,13 +259,9 @@ function CategoriaRow({
           {cat.activa === false ? '○' : '●'}
         </button>
         <button onClick={onEdit}
-          className="text-xs px-2 py-1 rounded text-slate-500 hover:bg-slate-100">
-          Editar
-        </button>
+          className="text-xs px-2 py-1 rounded text-slate-500 hover:bg-slate-100">Editar</button>
         <button onClick={onDelete}
-          className="text-xs px-2 py-1 rounded text-red-400 hover:bg-red-50">
-          Borrar
-        </button>
+          className="text-xs px-2 py-1 rounded text-red-400 hover:bg-red-50">Borrar</button>
       </div>
     </div>
   )
@@ -317,5 +328,62 @@ function CategoriaForm({ initial, parentInfo, onSave, onCancel }) {
         </button>
       </div>
     </form>
+  )
+}
+
+function ReassignModal({ reassign, categorias, onCancel, onConfirm }) {
+  const [destino, setDestino] = useState(categorias[0]?.nombre || '')
+  const { cat, gastos } = reassign
+
+  return (
+    <div onClick={onCancel} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 200, padding: 16,
+    }}>
+      <div onClick={e => e.stopPropagation()} className="card w-full max-w-md"
+        style={{ background: 'white', borderColor: '#d0ece4', maxHeight: '90vh', overflowY: 'auto' }}>
+        <h3 className="font-medium text-slate-800 mb-2">
+          "{cat.nombre}" tiene {gastos.length} gasto{gastos.length === 1 ? '' : 's'}
+        </h3>
+        <p className="text-xs text-slate-500 mb-3">
+          Antes de borrar la categoría, elegí a cuál reasignar esos gastos.
+        </p>
+
+        <div className="space-y-2 max-h-40 overflow-y-auto mb-3" style={{ background: '#f4faf7', borderRadius: 10, padding: 8 }}>
+          {gastos.slice(0, 20).map(g => (
+            <div key={g.id} className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400 flex-shrink-0">{g.fecha}</span>
+              <span className="text-slate-700 truncate flex-1">{g.descripcion}</span>
+              <span className="text-slate-500 flex-shrink-0">${Number(g.monto).toLocaleString('es-CL')}</span>
+            </div>
+          ))}
+          {gastos.length > 20 && (
+            <p className="text-xs text-slate-400 text-center">y {gastos.length - 20} más...</p>
+          )}
+        </div>
+
+        <div className="mb-3">
+          <label className="label">Reasignar a:</label>
+          <select className="input" value={destino} onChange={e => setDestino(e.target.value)}>
+            {categorias.length === 0 && <option value="">Sin opciones</option>}
+            {categorias.map(c => <option key={c.id}>{c.nombre}</option>)}
+          </select>
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={() => onConfirm(destino)}
+            disabled={!destino}
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+            style={{ background: '#1F7A5C', color: 'white', opacity: destino ? 1 : 0.5 }}>
+            Reasignar y borrar
+          </button>
+          <button onClick={onCancel}
+            className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

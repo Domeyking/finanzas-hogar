@@ -36,8 +36,8 @@ function normalizarFecha(str) {
   return new Date().toISOString().split('T')[0]
 }
 
-export default function CargaCSV({ user, onDone, onCancel }) {
-  const { nombres: CATEGORIAS, colores: CAT_COLORS } = useCategorias()
+export default function CargaCSV({ user, cuentaId, onDone, onCancel }) {
+  const { nombres: CATEGORIAS, colores: CAT_COLORS } = useCategorias(cuentaId)
   const [paso, setPaso]           = useState('subir')
   const [transacciones, setTrans] = useState([])
   const [error, setError]         = useState('')
@@ -69,7 +69,7 @@ export default function CargaCSV({ user, onDone, onCancel }) {
       const lote = filas.slice(i, i + LOTE)
       setProgreso(Math.round((i / filas.length) * 100))
       try {
-        const cats = await categorizarTransacciones(lote, user.id)
+        const cats = await categorizarTransacciones(lote, cuentaId)
         cats.forEach(c => {
           const fila = lote[c.index - 1]
           if (fila) {
@@ -134,11 +134,12 @@ export default function CargaCSV({ user, onDone, onCancel }) {
     for (const t of corregidas) {
       const palabras = t.descripcion.split(' ').filter(p => p.length >= 4)
       if (palabras.length > 0) {
-        await guardarRegla(user.id, palabras[0].toLowerCase(), t.categoria)
+        await guardarRegla(cuentaId, user.id, palabras[0].toLowerCase(), t.categoria)
       }
     }
 
     const aGuardar = seleccionados.map(t => ({
+      cuenta_id:   cuentaId,
       user_id:     user.id,
       user_name:   userName,
       fecha:       t.fecha,
