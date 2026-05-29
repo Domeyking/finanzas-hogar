@@ -17,25 +17,33 @@ export default function CrearOUnirseCuenta({ user, onReady, onLogout }) {
     if (!nombre.trim()) { setError('Pon un nombre'); return }
     setLoading(true)
 
-    const { data: cuenta, error: e1 } = await supabase
+    const { data: authData, error: authErr } = await supabase.auth.getUser()
+    if (authErr || !authData?.user) {
+      setError('Sesión expirada, volvé a entrar')
+      setLoading(false)
+      return
+    }
+    const uid = authData.user.id
+    const cuentaId = crypto.randomUUID()
+
+    const { error: e1 } = await supabase
       .from('cuentas')
       .insert({
-        nombre: nombre.trim(),
+        id:          cuentaId,
+        nombre:      nombre.trim(),
         descripcion: descripcion.trim() || null,
-        owner_id: user.id,
+        owner_id:    uid,
       })
-      .select()
-      .single()
     if (e1) { setError(e1.message); setLoading(false); return }
 
     const { error: e2 } = await supabase.from('cuenta_miembros').insert({
-      cuenta_id: cuenta.id,
-      user_id:   user.id,
+      cuenta_id: cuentaId,
+      user_id:   uid,
       role:      'owner',
     })
     if (e2) { setError(e2.message); setLoading(false); return }
 
-    await sembrarCategoriasSiVacio(cuenta.id)
+    await sembrarCategoriasSiVacio(cuentaId)
 
     setLoading(false)
     onReady()

@@ -39,20 +39,25 @@ export default function CuentaMenu({ user, cuentas, cuentaActiva, onSwitch, onCl
     setError('')
     if (!nombre.trim()) { setError('Pon un nombre'); return }
     setBusy(true)
-    const { data: cuenta, error: e1 } = await supabase
+    const { data: authData, error: authErr } = await supabase.auth.getUser()
+    if (authErr || !authData?.user) {
+      setError('Sesión expirada'); setBusy(false); return
+    }
+    const uid = authData.user.id
+    const cuentaId = crypto.randomUUID()
+    const { error: e1 } = await supabase
       .from('cuentas')
-      .insert({ nombre: nombre.trim(), descripcion: descripcion.trim() || null, owner_id: user.id })
-      .select().single()
+      .insert({ id: cuentaId, nombre: nombre.trim(), descripcion: descripcion.trim() || null, owner_id: uid })
     if (e1) { setError(e1.message); setBusy(false); return }
     const { error: e2 } = await supabase.from('cuenta_miembros').insert({
-      cuenta_id: cuenta.id, user_id: user.id, role: 'owner',
+      cuenta_id: cuentaId, user_id: uid, role: 'owner',
     })
     if (e2) { setError(e2.message); setBusy(false); return }
-    await sembrarCategoriasSiVacio(cuenta.id)
+    await sembrarCategoriasSiVacio(cuentaId)
     setBusy(false)
     setNombre(''); setDescripcion('')
     await onReload()
-    onSwitch({ ...cuenta, role: 'owner' })
+    onSwitch({ id: cuentaId, nombre: nombre.trim(), descripcion: descripcion.trim() || null, owner_id: uid, role: 'owner' })
     onClose()
   }
 
