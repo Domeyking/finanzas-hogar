@@ -41,6 +41,28 @@ export const CAT_COLORS = {
   'Otro':                       '#B4B2A9',
 }
 
+// Palabras genéricas de banco que NO identifican a un comercio/persona.
+// Se ignoran al buscar gastos "parecidos" y al aprender reglas, para no
+// agrupar cosas distintas solo porque comparten "transferencia", "pago", etc.
+const STOPWORDS = new Set([
+  'transferencia', 'transferencias', 'transf', 'transf.', 'tef', 'pago', 'pagos',
+  'compra', 'compras', 'abono', 'cargo', 'giro', 'deposito', 'deposito', 'retiro',
+  'a', 'de', 'del', 'la', 'el', 'los', 'las', 'por', 'con', 'para', 'su', 'sus',
+  'un', 'una', 'y', 'en', 'al', 'spa', 'ltda', 'eirl', 'sa', 's.a.', 'cia',
+])
+
+// "Firma" de una descripción: tokens distintivos en minúscula, sin acentos
+// ni puntuación, sin stopwords. Ej: "Transferencia a Felipe Olivares" -> "felipe olivares".
+export function firmaDescripcion(desc) {
+  if (!desc) return ''
+  return desc.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // quita acentos
+    .replace(/[^a-z0-9\s]/g, ' ')                     // quita puntuación
+    .split(/\s+/)
+    .filter(t => t.length >= 3 && !STOPWORDS.has(t))
+    .join(' ')
+}
+
 export const fmt = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
 

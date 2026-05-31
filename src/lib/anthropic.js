@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { firmaDescripcion } from './constants'
 
 export async function obtenerReglas(cuentaId) {
   if (!cuentaId) return []
@@ -34,8 +35,12 @@ export async function categorizarTransacciones(transacciones, cuentaId, items = 
   const conRegla = []
 
   transacciones.forEach((t, i) => {
-    const desc = t.descripcion.toLowerCase()
-    const regla = reglas.find(r => desc.includes(r.keyword))
+    const firma = firmaDescripcion(t.descripcion)
+    // La regla aplica si su descripción comparte TODOS los tokens distintivos.
+    const regla = reglas.find(r => {
+      const toks = (r.keyword || '').split(' ').filter(Boolean)
+      return toks.length > 0 && toks.every(tk => firma.includes(tk))
+    })
     if (regla) {
       conRegla.push({ index: i + 1, categoria_id: regla.categoria_id, descripcion_limpia: t.descripcion, aprendida: true })
     } else {

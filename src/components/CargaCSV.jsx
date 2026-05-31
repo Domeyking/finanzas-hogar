@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { categorizarTransacciones, guardarRegla } from '../lib/anthropic'
-import { FUENTES, fmt } from '../lib/constants'
+import { FUENTES, fmt, firmaDescripcion } from '../lib/constants'
 import { useCategorias, mapaPorId, idPorNombre } from '../lib/categorias'
 
 function parsearCSV(texto) {
@@ -137,9 +137,9 @@ export default function CargaCSV({ user, cuentaId, onDone, onCancel }) {
       t.incluir && t.categoria_id !== t.categoriaOriginalId
     )
     for (const t of corregidas) {
-      const palabras = t.descripcion.split(' ').filter(p => p.length >= 4)
-      if (palabras.length > 0 && t.categoria_id) {
-        await guardarRegla(cuentaId, user.id, palabras[0].toLowerCase(), t.categoria_id, mapa[t.categoria_id]?.nombre)
+      const keyword = firmaDescripcion(t.descripcion)
+      if (keyword && t.categoria_id) {
+        await guardarRegla(cuentaId, user.id, keyword, t.categoria_id, mapa[t.categoria_id]?.nombre)
       }
     }
 

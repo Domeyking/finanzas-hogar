@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { FUENTES } from '../lib/constants'
+import { FUENTES, firmaDescripcion } from '../lib/constants'
 import { useCategorias, subcategoriasDeId, mapaPorId, idPorNombre } from '../lib/categorias'
 
 export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEditar }) {
@@ -61,9 +61,11 @@ export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEdi
 
   async function buscarSimilares(descripcion, nuevaCatId, gastoId) {
     if (!descripcion || !cuentaId) return []
-    const palabras = descripcion.trim().split(/\s+/).filter(p => p.length >= 4)
-    if (palabras.length === 0) return []
-    const keyword = palabras[0]
+    // Tokens distintivos (sin "transferencia", "pago", "a", etc.).
+    const tokens = firmaDescripcion(descripcion).split(' ').filter(Boolean)
+    if (tokens.length === 0) return [] // descripción demasiado genérica
+    // Buscamos por el token más distintivo y luego refinamos.
+    const keyword = [...tokens].sort((a, b) => b.length - a.length)[0]
     const { data } = await supabase
       .from('gastos')
       .select('id, fecha, descripcion, monto, categoria_id')
@@ -73,7 +75,11 @@ export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEdi
       .neq('id', gastoId || '00000000-0000-0000-0000-000000000000')
       .order('fecha', { ascending: false })
       .limit(50)
-    return data || []
+    // Solo los que comparten TODOS los tokens distintivos (mismo comercio/persona).
+    return (data || []).filter(g => {
+      const f = firmaDescripcion(g.descripcion)
+      return tokens.every(t => f.includes(t))
+    })
   }
 
   async function handleSubmit(e) {
@@ -136,7 +142,7 @@ export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEdi
         })
         .in('id', ids)
 
-      const keyword = form.descripcion.trim().split(/\s+/).find(p => p.length >= 4)
+      const keyword = firmaDescripcion(form.descripcion)
       if (keyword && cuentaId) {
         await supabase.from('reglas_categoria').upsert(
           {
