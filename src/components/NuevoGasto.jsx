@@ -1,68 +1,75 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { FUENTES } from '../lib/constants'
-import { useCategorias, subcategoriasDe } from '../lib/categorias'
+import { useCategorias, subcategoriasDeId, mapaPorId, idPorNombre } from '../lib/categorias'
 
 export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEditar }) {
-  const { nombres: CATEGORIAS, items, cargando } = useCategorias(cuentaId)
+  const { items, cargando } = useCategorias(cuentaId)
+  const raiz = items.filter(c => !c.parent_id)
+  const mapa = mapaPorId(items)
   const hoy = new Date().toISOString().split('T')[0]
   const [form, setForm] = useState({
     fecha: hoy,
     descripcion: '',
     monto: '',
-    categoria: CATEGORIAS[1] || CATEGORIAS[0] || '',
-    subcategoria: '',
+    categoria_id: '',
+    subcategoria_id: '',
     fuente: FUENTES[0],
     notas: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
-  const [similares, setSimilares] = useState(null) // { gastos, nuevaCat, gastoId }
+  const [similares, setSimilares] = useState(null) // { gastos, nuevaCatId, nuevaCatNombre }
 
   useEffect(() => {
     if (gastoEditar) {
+      // Preferir los ids; si el gasto es legacy (solo texto) resolver por nombre.
+      const catId = gastoEditar.categoria_id || idPorNombre(items, gastoEditar.categoria)
+      const subId = gastoEditar.subcategoria_id
+        || idPorNombre(items, gastoEditar.subcategoria, catId)
       setForm({
-        fecha:        gastoEditar.fecha,
-        descripcion:  gastoEditar.descripcion,
-        monto:        Number(gastoEditar.monto).toLocaleString('es-CL'),
-        categoria:    gastoEditar.categoria,
-        subcategoria: gastoEditar.subcategoria || '',
-        fuente:       gastoEditar.fuente,
-        notas:        gastoEditar.notas || '',
+        fecha:           gastoEditar.fecha,
+        descripcion:     gastoEditar.descripcion,
+        monto:           Number(gastoEditar.monto).toLocaleString('es-CL'),
+        categoria_id:    catId || '',
+        subcategoria_id: subId || '',
+        fuente:          gastoEditar.fuente,
+        notas:           gastoEditar.notas || '',
       })
     }
-  }, [gastoEditar])
+  }, [gastoEditar, cargando]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!gastoEditar && CATEGORIAS.length > 0 && !CATEGORIAS.includes(form.categoria)) {
-      setForm(f => ({ ...f, categoria: CATEGORIAS[1] || CATEGORIAS[0] || '' }))
+    // Default: segunda categoría raíz (la primera suele ser "Arriendo").
+    if (!gastoEditar && !cargando && raiz.length > 0 && !mapa[form.categoria_id]) {
+      setForm(f => ({ ...f, categoria_id: (raiz[1] || raiz[0]).id }))
     }
-  }, [CATEGORIAS, gastoEditar])
+  }, [cargando, gastoEditar]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const subs = subcategoriasDe(items, form.categoria)
+  const subs = subcategoriasDeId(items, form.categoria_id)
 
   useEffect(() => {
     // No limpiar mientras las categorías cargan: subs podría estar vacío
     // sólo porque todavía no llegó la data, y borraríamos un valor válido.
     if (cargando) return
-    if (form.subcategoria && !subs.find(s => s.nombre === form.subcategoria)) {
-      setForm(f => ({ ...f, subcategoria: '' }))
+    if (form.subcategoria_id && !subs.find(s => s.id === form.subcategoria_id)) {
+      setForm(f => ({ ...f, subcategoria_id: '' }))
     }
-  }, [form.categoria, cargando]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.categoria_id, cargando]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  async function buscarSimilares(descripcion, nuevaCategoria, gastoId) {
+  async function buscarSimilares(descripcion, nuevaCatId, gastoId) {
     if (!descripcion || !cuentaId) return []
     const palabras = descripcion.trim().split(/\s+/).filter(p => p.length >= 4)
     if (palabras.length === 0) return []
     const keyword = palabras[0]
     const { data } = await supabase
       .from('gastos')
-      .select('id, fecha, descripcion, monto, categoria')
+      .select('id, fecha, descripcion, monto, categoria_id')
       .eq('cuenta_id', cuentaId)
       .ilike('descripcion', `%${keyword}%`)
-      .neq('categoria', nuevaCategoria)
+      .neq('categoria_id', nuevaCatId)
       .neq('id', gastoId || '00000000-0000-0000-0000-000000000000')
       .order('fecha', { ascending: false })
       .limit(50)
@@ -75,27 +82,32 @@ export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEdi
     const monto = parseInt(form.monto.replace(/\D/g, ''), 10)
     if (!monto || monto <= 0) { setError('Ingresa un monto válido'); return }
 
+    if (!form.categoria_id) { setError('Selecciona una categoría'); return }
+
     setLoading(true)
+    // categoria_id / subcategoria_id son la fuente de verdad; el texto es caché.
     const payload = {
-      fecha:        form.fecha,
-      descripcion:  form.descripcion,
+      fecha:           form.fecha,
+      descripcion:     form.descripcion,
       monto,
-      categoria:    form.categoria,
-      subcategoria: form.subcategoria || null,
-      fuente:       form.fuente,
-      notas:        form.notas || null,
+      categoria_id:    form.categoria_id,
+      subcategoria_id: form.subcategoria_id || null,
+      categoria:       mapa[form.categoria_id]?.nombre || null,
+      subcategoria:    form.subcategoria_id ? (mapa[form.subcategoria_id]?.nombre || null) : null,
+      fuente:          form.fuente,
+      notas:           form.notas || null,
     }
 
     if (gastoEditar) {
-      const cambioCategoria = gastoEditar.categoria !== form.categoria
+      const cambioCategoria = (gastoEditar.categoria_id || null) !== form.categoria_id
       const { error } = await supabase
         .from('gastos').update(payload).eq('id', gastoEditar.id)
       setLoading(false)
       if (error) { setError(error.message); return }
       if (cambioCategoria) {
-        const list = await buscarSimilares(form.descripcion, form.categoria, gastoEditar.id)
+        const list = await buscarSimilares(form.descripcion, form.categoria_id, gastoEditar.id)
         if (list.length > 0) {
-          setSimilares({ gastos: list, nuevaCat: form.categoria })
+          setSimilares({ gastos: list, nuevaCatId: form.categoria_id, nuevaCatNombre: mapa[form.categoria_id]?.nombre || '' })
           return
         }
       }
@@ -116,13 +128,24 @@ export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEdi
     if (ids.length > 0) {
       await supabase
         .from('gastos')
-        .update({ categoria: similares.nuevaCat, subcategoria: null })
+        .update({
+          categoria_id:    similares.nuevaCatId,
+          subcategoria_id: null,
+          categoria:       similares.nuevaCatNombre,
+          subcategoria:    null,
+        })
         .in('id', ids)
 
       const keyword = form.descripcion.trim().split(/\s+/).find(p => p.length >= 4)
       if (keyword && cuentaId) {
         await supabase.from('reglas_categoria').upsert(
-          { cuenta_id: cuentaId, user_id: user.id, keyword: keyword.toLowerCase(), categoria: similares.nuevaCat },
+          {
+            cuenta_id:    cuentaId,
+            user_id:      user.id,
+            keyword:      keyword.toLowerCase(),
+            categoria_id: similares.nuevaCatId,
+            categoria:    similares.nuevaCatNombre,
+          },
           { onConflict: 'cuenta_id,keyword' }
         )
       }
@@ -141,7 +164,8 @@ export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEdi
     return (
       <SimilaresModal
         gastos={similares.gastos}
-        nuevaCat={similares.nuevaCat}
+        nuevaCat={similares.nuevaCatNombre}
+        mapa={mapa}
         onConfirm={aplicarReclasificacion}
         onSkip={() => { setSimilares(null); onSaved() }}
       />
@@ -184,8 +208,8 @@ export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEdi
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">Categoría</label>
-            <select className="input" value={form.categoria} onChange={e => set('categoria', e.target.value)}>
-              {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
+            <select className="input" value={form.categoria_id} onChange={e => set('categoria_id', e.target.value)}>
+              {raiz.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
           </div>
           <div>
@@ -199,9 +223,9 @@ export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEdi
         {subs.length > 0 && (
           <div>
             <label className="label">Subcategoría (opcional)</label>
-            <select className="input" value={form.subcategoria} onChange={e => set('subcategoria', e.target.value)}>
+            <select className="input" value={form.subcategoria_id} onChange={e => set('subcategoria_id', e.target.value)}>
               <option value="">— Ninguna —</option>
-              {subs.map(s => <option key={s.id}>{s.nombre}</option>)}
+              {subs.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </div>
         )}
@@ -224,7 +248,7 @@ export default function NuevoGasto({ user, cuentaId, onSaved, onCancel, gastoEdi
   )
 }
 
-function SimilaresModal({ gastos, nuevaCat, onConfirm, onSkip }) {
+function SimilaresModal({ gastos, nuevaCat, mapa, onConfirm, onSkip }) {
   const [seleccion, setSeleccion] = useState(new Set(gastos.map(g => g.id)))
 
   function toggle(id) {
@@ -263,7 +287,7 @@ function SimilaresModal({ gastos, nuevaCat, onConfirm, onSkip }) {
               style={{ accentColor: '#1F7A5C' }} />
             <span className="text-slate-400 flex-shrink-0">{g.fecha}</span>
             <span className="text-slate-700 truncate flex-1">{g.descripcion}</span>
-            <span className="text-slate-500 flex-shrink-0">{g.categoria}</span>
+            <span className="text-slate-500 flex-shrink-0">{mapa[g.categoria_id]?.nombre || '—'}</span>
             <span className="text-slate-700 flex-shrink-0">${Number(g.monto).toLocaleString('es-CL')}</span>
           </label>
         ))}

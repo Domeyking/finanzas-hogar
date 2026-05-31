@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { CAT_COLORS, fmt, fmtShort, CATEGORIAS } from '../lib/constants'
+import { fmt, fmtShort } from '../lib/constants'
+import { useCategorias, mapaPorId } from '../lib/categorias'
 import NuevoGasto from '../components/NuevoGasto'
 import CargaCSV from '../components/CargaCSV'
 import CuentaMenu from '../components/CuentaMenu'
 import Categorias from './Categorias'
+
+const SIN_CAT = '__sin__' // bucket para gastos sin categoría resuelta (legacy)
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Tooltip,
@@ -15,6 +18,9 @@ const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov'
 export default function Dashboard({ user, cuentaCtx }) {
   const { cuentaActiva, cuentas, setCuentaActiva, reload: reloadCuentas } = cuentaCtx
   const cuentaId = cuentaActiva?.id
+  const { items } = useCategorias(cuentaId)
+  const mapa = mapaPorId(items)
+  const raiz = items.filter(c => !c.parent_id)
   const [gastos, setGastos]           = useState([])
   const [gastosAnio, setGastosAnio]   = useState([])
   const [loading, setLoading]         = useState(true)
@@ -110,6 +116,19 @@ export default function Dashboard({ user, cuentaCtx }) {
     setGastoEditar(null)
   }
 
+  // ── Helpers de categoría (id = fuente de verdad, nombre/color se resuelven) ──
+  const colorDe  = (id) => (id === SIN_CAT ? '#B4B2A9' : mapa[id]?.color) || '#B4B2A9'
+  const nombreDe = (id) => (id === SIN_CAT ? 'Sin categoría' : mapa[id]?.nombre) || 'Sin categoría'
+  const matchCat = (g, id) => id === SIN_CAT ? !g.categoria_id : g.categoria_id === id
+  // Lista de buckets: categorías raíz + "Sin categoría" para gastos legacy.
+  const buckets = [
+    ...raiz.map(c => ({ id: c.id, name: c.nombre, color: c.color })),
+    { id: SIN_CAT, name: 'Sin categoría', color: '#B4B2A9' },
+  ]
+  const agruparPorCat = (lista) => buckets
+    .map(b => ({ id: b.id, name: b.name, color: b.color, value: lista.filter(g => matchCat(g, b.id)).reduce((s, g) => s + Number(g.monto), 0) }))
+    .filter(d => d.value > 0).sort((a, b) => b.value - a.value)
+
   const totalMes      = gastos.reduce((s, g) => s + Number(g.monto), 0)
   const misGastos     = gastos.filter(g => g.user_id === user.id)
   const totalMio      = misGastos.reduce((s, g) => s + Number(g.monto), 0)
@@ -117,13 +136,8 @@ export default function Dashboard({ user, cuentaCtx }) {
   const misGastosAnio = gastosAnio.filter(g => g.user_id === user.id)
   const totalMioAnio  = misGastosAnio.reduce((s, g) => s + Number(g.monto), 0)
 
-  const porCategoria = CATEGORIAS
-    .map(cat => ({ name: cat, value: gastos.filter(g => g.categoria === cat).reduce((s, g) => s + Number(g.monto), 0) }))
-    .filter(d => d.value > 0).sort((a, b) => b.value - a.value)
-
-  const porCategoriaAnio = CATEGORIAS
-    .map(cat => ({ name: cat, value: gastosAnio.filter(g => g.categoria === cat).reduce((s, g) => s + Number(g.monto), 0) }))
-    .filter(d => d.value > 0).sort((a, b) => b.value - a.value)
+  const porCategoria     = agruparPorCat(gastos)
+  const porCategoriaAnio = agruparPorCat(gastosAnio)
 
   const porPersona = Object.entries(gastos.reduce((acc, g) => {
     acc[g.user_name] = (acc[g.user_name] || 0) + Number(g.monto); return acc
@@ -133,35 +147,35 @@ export default function Dashboard({ user, cuentaCtx }) {
     acc[g.user_name] = (acc[g.user_name] || 0) + Number(g.monto); return acc
   }, {})).map(([name, value]) => ({ name, value }))
 
-  const totalesPorCat = CATEGORIAS
-    .map(cat => ({ cat, total: gastosAnio.filter(g => g.categoria === cat).reduce((s, g) => s + Number(g.monto), 0) }))
-    .filter(d => d.total > 0).sort((a, b) => b.total - a.total)
+  const bucketDe = (g) => g.categoria_id || SIN_CAT
 
-  const top10    = totalesPorCat.slice(0, 10).map(d => d.cat)
+  const totalesPorCat = agruparPorCat(gastosAnio) // ya ordenado desc, con {id,name,color,value}
+
+  const top10    = totalesPorCat.slice(0, 10).map(d => d.id)
   const hayOtros = totalesPorCat.length > 10
 
   const datosAnuales = MESES.map((mes, i) => {
     const mesGastos = gastosAnio.filter(g => new Date(g.fecha).getMonth() === i)
     const punto = { mes }
-    top10.forEach(cat => {
-      punto[cat] = mesGastos.filter(g => g.categoria === cat).reduce((s, g) => s + Number(g.monto), 0)
+    top10.forEach(id => {
+      punto[id] = mesGastos.filter(g => matchCat(g, id)).reduce((s, g) => s + Number(g.monto), 0)
     })
     if (hayOtros) {
-      punto['Otros'] = mesGastos.filter(g => !top10.includes(g.categoria)).reduce((s, g) => s + Number(g.monto), 0)
+      punto['Otros'] = mesGastos.filter(g => !top10.includes(bucketDe(g))).reduce((s, g) => s + Number(g.monto), 0)
     }
     return punto
   })
 
   const barKeys = hayOtros ? [...top10, 'Otros'] : top10
-  const colores = [...top10.map(c => CAT_COLORS[c] || '#B4B2A9'), '#B4B2A9']
+  const colores = [...top10.map(id => colorDe(id)), '#B4B2A9']
 
   const gastosDetalle = catDetalle
-    ? gastosAnio.filter(g => g.categoria === catDetalle).sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+    ? gastosAnio.filter(g => matchCat(g, catDetalle)).sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
     : []
 
   const evolucionCat = MESES.map((mes, i) => ({
     mes,
-    total: gastosAnio.filter(g => g.categoria === catDetalle && new Date(g.fecha).getMonth() === i).reduce((s, g) => s + Number(g.monto), 0)
+    total: gastosAnio.filter(g => matchCat(g, catDetalle) && new Date(g.fecha).getMonth() === i).reduce((s, g) => s + Number(g.monto), 0)
   }))
 
   const totalCat      = gastosDetalle.reduce((s, g) => s + Number(g.monto), 0)
@@ -174,13 +188,13 @@ export default function Dashboard({ user, cuentaCtx }) {
 
   // ── Detalle categoría ──
   if (catDetalle) {
-    const color = CAT_COLORS[catDetalle] || '#B4B2A9'
+    const color = colorDe(catDetalle)
     return (
       <div className="min-h-screen pb-8" style={{ background: '#f4faf7' }}>
         <div style={{ background: color }} className="px-4 pt-8 pb-16">
           <div className="max-w-2xl mx-auto">
             <button onClick={() => setCatDetalle(null)} style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }} className="flex items-center gap-2 mb-4">← Volver</button>
-            <h1 style={{ color: 'white', fontSize: 22, fontWeight: 500 }}>{catDetalle}</h1>
+            <h1 style={{ color: 'white', fontSize: 22, fontWeight: 500 }}>{nombreDe(catDetalle)}</h1>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{filtroAnio}</p>
           </div>
         </div>
@@ -385,18 +399,18 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                     <PieChart>
                       <Pie data={vistaAnual ? porCategoriaAnio : porCategoria}
                         cx="50%" cy="50%" outerRadius={80} dataKey="value" nameKey="name" paddingAngle={2}
-                        onClick={d => setCatDetalle(d.name)} style={{ cursor: 'pointer' }}>
+                        onClick={d => setCatDetalle(d.id)} style={{ cursor: 'pointer' }}>
                         {(vistaAnual ? porCategoriaAnio : porCategoria).map(entry => (
-                          <Cell key={entry.name} fill={CAT_COLORS[entry.name] || '#B4B2A9'} />
+                          <Cell key={entry.id} fill={entry.color || '#B4B2A9'} />
                         ))}
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-1.5 mt-2">
                     {(vistaAnual ? porCategoriaAnio : porCategoria).slice(0, 8).map(d => (
-                      <button key={d.name} onClick={() => setCatDetalle(d.name)}
+                      <button key={d.id} onClick={() => setCatDetalle(d.id)}
                         className="w-full flex items-center gap-2 hover:bg-slate-50 rounded-lg px-1 py-1 transition-all">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: CAT_COLORS[d.name] || '#B4B2A9' }} />
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color || '#B4B2A9' }} />
                         <span className="text-xs text-slate-600 flex-1 text-left truncate">{d.name}</span>
                         <span className="text-xs font-medium text-slate-700">{fmt(d.value)}</span>
                         <span className="text-xs text-slate-400 w-8 text-right">{Math.round(d.value / (vistaAnual ? totalAnio : totalMes) * 100)}%</span>
@@ -465,13 +479,13 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                           style={{ marginTop: 3, accentColor: '#1F7A5C', cursor: 'pointer', flexShrink: 0 }} />
                       )}
                       <div className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5"
-                        style={{ backgroundColor: (CAT_COLORS[g.categoria] || '#888780') + '22' }}>
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CAT_COLORS[g.categoria] || '#888780' }} />
+                        style={{ backgroundColor: colorDe(g.categoria_id) + '22' }}>
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colorDe(g.categoria_id) }} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-slate-800 truncate">{g.descripcion}</p>
                         <p className="text-xs text-slate-400">
-                          {g.categoria}{g.subcategoria ? ` › ${g.subcategoria}` : ''} · {g.user_name} · {g.fecha}
+                          {mapa[g.categoria_id]?.nombre || g.categoria || 'Sin categoría'}{g.subcategoria_id ? ` › ${mapa[g.subcategoria_id]?.nombre || g.subcategoria}` : (g.subcategoria ? ` › ${g.subcategoria}` : '')} · {g.user_name} · {g.fecha}
                         </p>
                       </div>
                       <div className="text-right flex-shrink-0 flex flex-col gap-1">
@@ -517,13 +531,13 @@ onDone={(n, aprendidas) => { setShowCSV(false); fetchGastos(); fetchGastosAnio()
                 <div className="mt-4 space-y-1.5">
                   {barKeys.map((key, i) => {
                     const total = gastosAnio
-                      .filter(g => key === 'Otros' ? !top10.includes(g.categoria) : g.categoria === key)
+                      .filter(g => key === 'Otros' ? !top10.includes(bucketDe(g)) : matchCat(g, key))
                       .reduce((s, g) => s + Number(g.monto), 0)
                     return (
                       <button key={key} onClick={() => key !== 'Otros' && setCatDetalle(key)}
                         className="w-full flex items-center gap-2 hover:bg-slate-50 rounded-lg px-1 py-1 transition-all">
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colores[i] || '#B4B2A9' }} />
-                        <span className="text-xs text-slate-600 flex-1 text-left truncate">{key}</span>
+                        <span className="text-xs text-slate-600 flex-1 text-left truncate">{key === 'Otros' ? 'Otros' : nombreDe(key)}</span>
                         <span className="text-xs font-medium text-slate-700">{fmt(total)}</span>
                         <span className="text-xs text-slate-400 w-8 text-right">{totalAnio > 0 ? Math.round(total / totalAnio * 100) : 0}%</span>
                         {key !== 'Otros' && <span className="text-xs text-slate-300">›</span>}

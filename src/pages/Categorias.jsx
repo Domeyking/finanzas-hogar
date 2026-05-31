@@ -33,35 +33,43 @@ export default function Categorias({ cuentaId }) {
   const subsDe = (id) => categorias.filter(c => c.parent_id === id).sort((a, b) => a.orden - b.orden)
 
   async function intentarEliminar(cat) {
-    const idsAfectados = [cat.id, ...categorias.filter(c => c.parent_id === cat.id).map(c => c.id)]
-    const nombresAfectados = [cat.nombre, ...categorias.filter(c => c.parent_id === cat.id).map(c => c.nombre)]
-    const { data: gastosAfectados } = await supabase
+    const esRaiz = !cat.parent_id
+    // Categorías a borrar: la categoría + sus subs (si es raíz).
+    const idsBorrar = esRaiz
+      ? [cat.id, ...categorias.filter(c => c.parent_id === cat.id).map(c => c.id)]
+      : [cat.id]
+    // Gastos afectados: por categoria_id (raíz) o subcategoria_id (sub).
+    let q = supabase
       .from('gastos')
       .select('id, fecha, descripcion, monto, categoria, subcategoria')
       .eq('cuenta_id', cuentaId)
-      .in('categoria', nombresAfectados)
+    q = esRaiz ? q.eq('categoria_id', cat.id) : q.eq('subcategoria_id', cat.id)
+    const { data: gastosAfectados } = await q
 
     if (gastosAfectados && gastosAfectados.length > 0) {
-      setReassign({ cat, gastos: gastosAfectados, idsAfectados, nombresAfectados })
+      setReassign({ cat, esRaiz, gastos: gastosAfectados, gastoIds: gastosAfectados.map(g => g.id), idsBorrar })
       return
     }
-    await eliminarCategoria(cat)
+    await eliminarCategorias(idsBorrar)
   }
 
-  async function eliminarCategoria(cat) {
-    const { error } = await supabase.from('categorias').delete().eq('id', cat.id)
+  async function eliminarCategorias(ids) {
+    const { error } = await supabase.from('categorias').delete().in('id', ids)
     if (error) setError(error.message)
     load()
   }
 
-  async function reassignAndDelete(nuevaCategoria) {
+  async function reassignAndDelete(nuevaCatId) {
+    const nuevoNombre = categorias.find(c => c.id === nuevaCatId)?.nombre || null
+    const patch = reassign.esRaiz
+      ? { categoria_id: nuevaCatId, subcategoria_id: null, categoria: nuevoNombre, subcategoria: null }
+      : { subcategoria_id: null, subcategoria: null } // borrar una sub: el gasto conserva su categoría raíz
     const { error } = await supabase
       .from('gastos')
-      .update({ categoria: nuevaCategoria, subcategoria: null })
-      .eq('cuenta_id', cuentaId)
-      .in('categoria', reassign.nombresAfectados)
+      .update(patch)
+      .in('id', reassign.gastoIds)
     if (error) { setError(error.message); return }
-    await supabase.from('categorias').delete().eq('id', reassign.cat.id)
+    await supabase.from('categorias').delete().in('id', reassign.idsBorrar)
     setReassign(null)
     load()
   }
@@ -107,39 +115,14 @@ export default function Categorias({ cuentaId }) {
       })
       if (error) { setError(error.message); return }
     } else {
-      const oldName = editing.nombre
-      const newName = form.nombre.trim()
+      // Los gastos referencian la categoría por id, así que renombrar es
+      // solo actualizar esta fila — ningún gasto se toca (adiós al bug).
       const { error } = await supabase.from('categorias').update({
-        nombre: newName,
+        nombre: form.nombre.trim(),
         color:  form.color || COLOR_DEFAULT,
         icono:  form.icono || null,
       }).eq('id', editing.id)
       if (error) { setError(error.message); return }
-
-      // gastos.categoria / gastos.subcategoria guardan el nombre como texto,
-      // así que al renombrar la categoría hay que propagar el nuevo nombre
-      // a los gastos existentes para que no queden con un texto huérfano.
-      if (oldName !== newName && cuentaId) {
-        if (editing.parent_id) {
-          await supabase
-            .from('gastos')
-            .update({ subcategoria: newName })
-            .eq('cuenta_id', cuentaId)
-            .eq('subcategoria', oldName)
-        } else {
-          await supabase
-            .from('gastos')
-            .update({ categoria: newName })
-            .eq('cuenta_id', cuentaId)
-            .eq('categoria', oldName)
-          // Reglas aprendidas también guardan el nombre como texto
-          await supabase
-            .from('reglas_categoria')
-            .update({ categoria: newName })
-            .eq('cuenta_id', cuentaId)
-            .eq('categoria', oldName)
-        }
-      }
     }
     cancelEdit()
     load()
@@ -162,7 +145,7 @@ export default function Categorias({ cuentaId }) {
       {reassign && (
         <ReassignModal
           reassign={reassign}
-          categorias={categorias.filter(c => !c.parent_id && !reassign.idsAfectados.includes(c.id))}
+          categorias={categorias.filter(c => !c.parent_id && !reassign.idsBorrar.includes(c.id))}
           onCancel={() => setReassign(null)}
           onConfirm={reassignAndDelete}
         />
@@ -359,8 +342,8 @@ function CategoriaForm({ initial, parentInfo, onSave, onCancel }) {
 }
 
 function ReassignModal({ reassign, categorias, onCancel, onConfirm }) {
-  const [destino, setDestino] = useState(categorias[0]?.nombre || '')
-  const { cat, gastos } = reassign
+  const [destino, setDestino] = useState(categorias[0]?.id || '')
+  const { cat, gastos, esRaiz } = reassign
 
   return (
     <div onClick={onCancel} style={{
@@ -374,7 +357,9 @@ function ReassignModal({ reassign, categorias, onCancel, onConfirm }) {
           "{cat.nombre}" tiene {gastos.length} gasto{gastos.length === 1 ? '' : 's'}
         </h3>
         <p className="text-xs text-slate-500 mb-3">
-          Antes de borrar la categoría, elegí a cuál reasignar esos gastos.
+          {esRaiz
+            ? 'Antes de borrar la categoría, elegí a cuál reasignar esos gastos.'
+            : 'Esos gastos conservarán su categoría, sólo se les quitará esta subcategoría.'}
         </p>
 
         <div className="space-y-2 max-h-40 overflow-y-auto mb-3" style={{ background: '#f4faf7', borderRadius: 10, padding: 8 }}>
@@ -390,20 +375,22 @@ function ReassignModal({ reassign, categorias, onCancel, onConfirm }) {
           )}
         </div>
 
-        <div className="mb-3">
-          <label className="label">Reasignar a:</label>
-          <select className="input" value={destino} onChange={e => setDestino(e.target.value)}>
-            {categorias.length === 0 && <option value="">Sin opciones</option>}
-            {categorias.map(c => <option key={c.id}>{c.nombre}</option>)}
-          </select>
-        </div>
+        {esRaiz && (
+          <div className="mb-3">
+            <label className="label">Reasignar a:</label>
+            <select className="input" value={destino} onChange={e => setDestino(e.target.value)}>
+              {categorias.length === 0 && <option value="">Sin opciones</option>}
+              {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </div>
+        )}
 
         <div className="flex gap-2">
           <button onClick={() => onConfirm(destino)}
-            disabled={!destino}
+            disabled={esRaiz && !destino}
             className="flex-1 py-2.5 rounded-xl text-sm font-medium"
-            style={{ background: '#1F7A5C', color: 'white', opacity: destino ? 1 : 0.5 }}>
-            Reasignar y borrar
+            style={{ background: '#1F7A5C', color: 'white', opacity: (esRaiz && !destino) ? 0.5 : 1 }}>
+            {esRaiz ? 'Reasignar y borrar' : 'Borrar subcategoría'}
           </button>
           <button onClick={onCancel}
             className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">

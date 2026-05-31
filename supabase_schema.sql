@@ -251,3 +251,19 @@ drop policy if exists "Borrar reglas de mi cuenta" on public.reglas_categoria;
 create policy "Borrar reglas de mi cuenta"
   on public.reglas_categoria for delete
   using (cuenta_id is null or public.user_in_cuenta(cuenta_id));
+
+-- ─────────────────────────────────────────────
+-- Relación por ID (FK) — fuente de verdad de la categoría.
+-- Se declara aquí, al final, porque depende de que la tabla
+-- categorias ya exista. Las columnas de texto categoria/subcategoria
+-- quedan como caché. (Ver migracion_categoria_id.sql para el backfill.)
+-- ─────────────────────────────────────────────
+alter table public.gastos
+  add column if not exists categoria_id    uuid references public.categorias(id) on delete set null;
+alter table public.gastos
+  add column if not exists subcategoria_id uuid references public.categorias(id) on delete set null;
+create index if not exists gastos_categoria_id_idx    on public.gastos(categoria_id);
+create index if not exists gastos_subcategoria_id_idx on public.gastos(subcategoria_id);
+
+alter table public.reglas_categoria
+  add column if not exists categoria_id uuid references public.categorias(id) on delete cascade;

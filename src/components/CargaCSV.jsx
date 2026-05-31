@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { categorizarTransacciones, guardarRegla } from '../lib/anthropic'
 import { FUENTES, fmt } from '../lib/constants'
-import { useCategorias } from '../lib/categorias'
+import { useCategorias, mapaPorId, idPorNombre } from '../lib/categorias'
 
 function parsearCSV(texto) {
   const lineas = texto.trim().split('\n').filter(l => l.trim())
@@ -37,7 +37,10 @@ function normalizarFecha(str) {
 }
 
 export default function CargaCSV({ user, cuentaId, onDone, onCancel }) {
-  const { nombres: CATEGORIAS, colores: CAT_COLORS } = useCategorias(cuentaId)
+  const { items } = useCategorias(cuentaId)
+  const raiz = items.filter(c => !c.parent_id)
+  const mapa = mapaPorId(items)
+  const otroId = idPorNombre(items, 'Otro')
   const [paso, setPaso]           = useState('subir')
   const [transacciones, setTrans] = useState([])
   const [error, setError]         = useState('')
@@ -69,19 +72,21 @@ export default function CargaCSV({ user, cuentaId, onDone, onCancel }) {
       const lote = filas.slice(i, i + LOTE)
       setProgreso(Math.round((i / filas.length) * 100))
       try {
-        const cats = await categorizarTransacciones(lote, cuentaId)
+        const cats = await categorizarTransacciones(lote, cuentaId, items)
         cats.forEach(c => {
           const fila = lote[c.index - 1]
           if (fila) {
+            // categorizarTransacciones ya resuelve a id; fallback "Otro".
+            const catId = c.categoria_id || otroId || ''
             resultado.push({
               ...fila,
-              fecha:       normalizarFecha(fila.fecha),
-              descripcion: c.descripcion_limpia || fila.descripcion,
-              categoria:   c.categoria,
-              fuente:      'Tarjeta de crédito',
-              incluir:     true,
-              aprendida:   c.aprendida || false,
-              categoriaOriginal: c.categoria,
+              fecha:        normalizarFecha(fila.fecha),
+              descripcion:  c.descripcion_limpia || fila.descripcion,
+              categoria_id: catId,
+              fuente:       'Tarjeta de crédito',
+              incluir:      true,
+              aprendida:    c.aprendida || false,
+              categoriaOriginalId: catId,
             })
             if (c.aprendida) totalAprendidas++
             else totalIA++
@@ -111,12 +116,12 @@ export default function CargaCSV({ user, cuentaId, onDone, onCancel }) {
     setTrans(t => t.filter(x => !x.incluir))
   }
 
-  function cambiarCategoriaSeleccionados(cat) {
-    setTrans(t => t.map(x => x.incluir ? { ...x, categoria: cat } : x))
+  function cambiarCategoriaSeleccionados(catId) {
+    setTrans(t => t.map(x => x.incluir ? { ...x, categoria_id: catId } : x))
   }
 
-  function cambiarCategoria(id, cat) {
-    setTrans(t => t.map(x => x.id === id ? { ...x, categoria: cat } : x))
+  function cambiarCategoria(id, catId) {
+    setTrans(t => t.map(x => x.id === id ? { ...x, categoria_id: catId } : x))
   }
 
   function cambiarFuente(id, fuente) {
@@ -129,25 +134,26 @@ export default function CargaCSV({ user, cuentaId, onDone, onCancel }) {
 
     // Guardar reglas para categorías que fueron corregidas
     const corregidas = transacciones.filter(t =>
-      t.incluir && t.categoria !== t.categoriaOriginal
+      t.incluir && t.categoria_id !== t.categoriaOriginalId
     )
     for (const t of corregidas) {
       const palabras = t.descripcion.split(' ').filter(p => p.length >= 4)
-      if (palabras.length > 0) {
-        await guardarRegla(cuentaId, user.id, palabras[0].toLowerCase(), t.categoria)
+      if (palabras.length > 0 && t.categoria_id) {
+        await guardarRegla(cuentaId, user.id, palabras[0].toLowerCase(), t.categoria_id, mapa[t.categoria_id]?.nombre)
       }
     }
 
     const aGuardar = seleccionados.map(t => ({
-      cuenta_id:   cuentaId,
-      user_id:     user.id,
-      user_name:   userName,
-      fecha:       t.fecha,
-      descripcion: t.descripcion,
-      monto:       t.monto,
-      categoria:   t.categoria,
-      fuente:      t.fuente,
-      notas:       null,
+      cuenta_id:    cuentaId,
+      user_id:      user.id,
+      user_name:    userName,
+      fecha:        t.fecha,
+      descripcion:  t.descripcion,
+      monto:        t.monto,
+      categoria_id: t.categoria_id || null,
+      categoria:    mapa[t.categoria_id]?.nombre || null,
+      fuente:       t.fuente,
+      notas:        null,
     }))
 
     const { error } = await supabase.from('gastos').insert(aGuardar)
@@ -227,7 +233,7 @@ export default function CargaCSV({ user, cuentaId, onDone, onCancel }) {
                 <select onChange={e => { if (e.target.value) { cambiarCategoriaSeleccionados(e.target.value); e.target.value = '' }}}
                   style={{ fontSize: 11, padding: '4px 8px', borderRadius: 8, border: '0.5px solid #d0ece4', background: 'white', color: '#155941', cursor: 'pointer' }}>
                   <option value="">Cambiar categoría...</option>
-                  {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
+                  {raiz.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
                 <button onClick={eliminarSeleccionados}
                   style={{ fontSize: 11, padding: '4px 10px', borderRadius: 8, background: '#fff0f0', color: '#c62828', border: '0.5px solid #ffcdd2', cursor: 'pointer' }}>
@@ -268,10 +274,10 @@ export default function CargaCSV({ user, cuentaId, onDone, onCancel }) {
                     </div>
                     <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 6px' }}>{t.fecha}</p>
                     <div className="flex gap-2 flex-wrap items-center">
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: CAT_COLORS[t.categoria] || '#B4B2A9', flexShrink: 0 }} />
-                      <select value={t.categoria} onChange={e => cambiarCategoria(t.id, e.target.value)}
-                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, border: `0.5px solid ${t.categoria !== t.categoriaOriginal ? '#1F7A5C' : '#d0ece4'}`, background: t.categoria !== t.categoriaOriginal ? '#f0faf6' : '#f4faf7', color: '#155941', cursor: 'pointer' }}>
-                        {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: mapa[t.categoria_id]?.color || '#B4B2A9', flexShrink: 0 }} />
+                      <select value={t.categoria_id} onChange={e => cambiarCategoria(t.id, e.target.value)}
+                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, border: `0.5px solid ${t.categoria_id !== t.categoriaOriginalId ? '#1F7A5C' : '#d0ece4'}`, background: t.categoria_id !== t.categoriaOriginalId ? '#f0faf6' : '#f4faf7', color: '#155941', cursor: 'pointer' }}>
+                        {raiz.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                       </select>
                       <select value={t.fuente} onChange={e => cambiarFuente(t.id, e.target.value)}
                         style={{ fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '0.5px solid #d0ece4', background: '#f4faf7', color: '#155941', cursor: 'pointer' }}>
